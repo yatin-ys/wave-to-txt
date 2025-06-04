@@ -49,19 +49,6 @@ export default function HomePage() {
   return (
     <div className="min-h-[calc(100vh-4rem)] flex flex-col">
       <main className="flex-grow container mx-auto max-w-[800px] px-4 py-8 animate-fade-in">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight text-primary mb-4">
-            Audio Transcription
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Upload your audio file to convert it to text. Supported formats:{" "}
-            {SUPPORTED_AUDIO_EXTENSIONS_ARRAY.join(", ").toUpperCase()}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Maximum file size: {MAX_FILE_SIZE_MB}MB
-          </p>
-        </div>
-
         <div className="space-y-8">
           <AudioUploadForm
             onStartTranscription={handleStartTranscription}
