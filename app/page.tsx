@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { AudioUploadForm } from "@/components/audio-upload-form";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 
 const SUPPORTED_AUDIO_EXTENSIONS_ARRAY = ".flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm".split(",");
 const MAX_FILE_SIZE_MB = 25;
@@ -55,15 +55,6 @@ export default function HomePage() {
             isTranscriptionLoading={isTranscriptionLoading}
           />
 
-          {isTranscriptionLoading && (
-            <div className="flex flex-col items-center justify-center p-8 animate-fade-in">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="mt-4 text-muted-foreground">
-                Transcribing your audio...
-              </p>
-            </div>
-          )}
-
           {transcriptionError && !isTranscriptionLoading && (
             <div
               role="alert"
@@ -79,11 +70,18 @@ export default function HomePage() {
 
           {transcription && !isTranscriptionLoading && (
             <div className="animate-fade-in">
-              <h2 className="text-xl font-semibold mb-4">Transcription Result</h2>
-              <div className="bg-card border rounded-lg p-4 h-[300px] overflow-y-auto">
-                <p className="whitespace-pre-wrap text-card-foreground">
-                  {transcription}
-                </p>
+              <h2 className="text-xl font-semibold mb-4 text-primary">Transcription Result</h2>
+              <div className="relative overflow-hidden rounded-xl backdrop-blur-sm">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-primary/10 pointer-events-none" />
+                <div className="relative bg-card/50 border shadow-lg backdrop-blur-sm">
+                  <div className="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-background/80 to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background/80 to-transparent" />
+                  <div className="h-[300px] overflow-y-auto px-6 py-4 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent hover:scrollbar-thumb-primary/30">
+                    <p className="whitespace-pre-wrap text-card-foreground leading-relaxed">
+                      {transcription}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}
