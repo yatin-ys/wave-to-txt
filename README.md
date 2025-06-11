@@ -27,6 +27,7 @@ cd wave-to-txt
 1. Backend
 ```bash
 ALLOWED_ORIGINS=http://localhost:5173
+GROQ_API_KEY="YOUR_GROQ_API_KEY_HERE"
 ```
 
 2. Frontend
