@@ -28,9 +28,6 @@ const Header: React.FC = () => {
           <h1 className="logo-text">WaveToTxt</h1>
         </div>
         <div className="header-right">
-          <div className="header-subtitle">
-            <span>AI-Powered Audio Transcription</span>
-          </div>
           <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleDarkMode} />
         </div>
       </div>
