@@ -1,0 +1,47 @@
+services:
+  # Add the Redis service
+  redis:
+    image: redis:7-alpine
+    restart: always
+    # This volume makes Redis data persistent across container restarts.
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      # Exposes the backend service on host port 8000
+      - "8000:8000"
+    volumes:
+      # Mounts the temp_audio directory to the host for persistence/debugging
+      - ./backend/temp_audio:/app/temp_audio
+    # The backend now depends on Redis being available before it starts.
+    depends_on:
+      - redis
+    environment:
+      # Loads the API key from the .env file in the root directory
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      # The backend now only needs to allow requests from the Nginx proxy
+      - ALLOWED_ORIGINS=*
+      # Add the REDIS_URL environment variable for the backend to connect to Redis.
+      # 'redis' is the hostname of the Redis service inside Docker's network.
+      - REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # The VITE_API_URL is just /api because Nginx will proxy it.
+        - VITE_API_URL=/api
+    ports:
+      # Exposes the frontend on host port 5173 (or any port you prefer)
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# Define the named volume for Redis persistence
+volumes:
+  redis_data:

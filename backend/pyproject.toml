@@ -7,4 +7,5 @@ dependencies = [
     "groq>=0.26.0",
     "python-dotenv>=1.1.0",
     "python-multipart>=0.0.20",
+    "redis>=6.2.0",
 ]
