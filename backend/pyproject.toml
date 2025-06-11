@@ -3,6 +3,7 @@ name = "backend"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "celery[redis]>=5.3.1",
     "fastapi[standard]>=0.115.12",
     "groq>=0.26.0",
     "python-dotenv>=1.1.0",
