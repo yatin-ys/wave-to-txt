@@ -1,0 +1,82 @@
+# =========================================
+# General / OS / Editor
+# =========================================
+# Environment variables
+.env
+.env.*.local
+*.local
+
+# IDE and editor directories
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# OS-generated files
+.DS_Store
+*.swo
+*.swp
+*.sw?
+
+# Compiled binary files (e.g., for VS)
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+
+# =========================================
+# Logs
+# =========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+
+# =========================================
+# Python Backend
+# =========================================
+# Virtual Environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+VENV/
+
+# Python cache and byte-compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Distribution / packaging
+# Note: 'dist/' is in the Build section below
+build/
+*.egg-info/
+.eggs/
+
+# Test artifacts
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+
+
+# =========================================
+# Node.js / React Frontend
+# =========================================
+# Dependencies
+# Ignore all node_modules directories in the project
+**/node_modules/
+
+# Build output & temporary files
+# This covers frontend/dist and any potential backend/dist
+dist/
+dist-ssr/
+frontend/node_modules/.tmp/
+
+repomix-output.*
