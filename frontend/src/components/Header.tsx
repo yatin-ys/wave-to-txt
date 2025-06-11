@@ -1,6 +1,10 @@
 import React from 'react';
+import DarkModeToggle from './DarkModeToggle';
+import { useDarkMode } from '../hooks/useDarkMode';
 
 const Header: React.FC = () => {
+  const { isDarkMode, toggleDarkMode } = useDarkMode();
+
   return (
     <header className="header">
       <div className="header-container">
@@ -23,8 +27,11 @@ const Header: React.FC = () => {
           </div>
           <h1 className="logo-text">WaveToTxt</h1>
         </div>
-        <div className="header-subtitle">
-          <span>AI-Powered Audio Transcription</span>
+        <div className="header-right">
+          <div className="header-subtitle">
+            <span>AI-Powered Audio Transcription</span>
+          </div>
+          <DarkModeToggle isDarkMode={isDarkMode} onToggle={toggleDarkMode} />
         </div>
       </div>
     </header>
