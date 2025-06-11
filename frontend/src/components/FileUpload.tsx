@@ -30,7 +30,7 @@ const FileUpload: React.FC<FileUploadProps> = ({ selectedFile, onFileChange, isL
           <div className="upload-text">
             <h3>{selectedFile ? selectedFile.name : 'Choose audio file'}</h3>
             <p>Drag and drop or click to browse</p>
-            <span className="file-types">Supports MP3, WAV, M4A, and more</span>
+            <span className="file-types">Supports MP3, WAV, M4A, and more <br /> Upto 25 MB</span>
           </div>
         </label>
       </div>

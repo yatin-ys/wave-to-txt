@@ -62,7 +62,6 @@ const App: React.FC = () => {
           <div className="content-section">
             <div className="intro-text">
               <h2>Transform Audio to Text</h2>
-              <p>Upload your audio file and get accurate transcriptions powered by advanced AI technology.</p>
             </div>
 
             <form onSubmit={handleTranscribe} className="transcription-form">
