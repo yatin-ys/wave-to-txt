@@ -1,11 +1,13 @@
-import os
 import json
-from pathlib import Path
+from botocore.exceptions import ClientError
 
 from backend.worker.celery_app import celery_app
 from backend.core.redis_client import redis_client
 from backend.core.config import settings
 from groq import Groq
+
+# Import the R2 client
+from backend.core.r2_client import r2_client
 
 try:
     if not settings.GROQ_API_KEY:
@@ -17,26 +19,35 @@ except Exception as e:
 
 
 @celery_app.task(name="process_transcription_task")
-def process_transcription_task(file_path_str: str, task_id: str):
+def process_transcription_task(object_key: str, task_id: str):
     """
-    Celery task to transcribe audio, updating status in Redis.
-    This version streams the file to the Groq API for low memory usage.
+    Celery task to transcribe audio from R2, updating status in Redis.
+    The object in R2 will now be retained and managed by a Lifecycle Rule.
     """
-    file_path = Path(file_path_str)
-
     if not redis_client:
         print(f"Task {task_id} failed: Redis client not available.")
-        # We can't update status without redis, so just log and exit.
         return
+
+    if not r2_client or not settings.R2_BUCKET_NAME:
+        error_msg = "Object storage service (R2) not available in worker."
+        print(f"Task {task_id} failed: {error_msg}")
+        task_data = {"status": "failed", "error": error_msg}
+        redis_client.set(task_id, json.dumps(task_data))
+        return
+
     try:
         if not groq_client:
             raise Exception("Groq client not initialized.")
 
-        with open(file_path, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(
-                file=audio_file,
-                model="whisper-large-v3",
-            )
+        # Stream the file directly from R2.
+        r2_object = r2_client.get_object(Bucket=settings.R2_BUCKET_NAME, Key=object_key)
+        audio_stream = r2_object["Body"]
+
+        # Pass the stream directly to the Groq client.
+        transcription = groq_client.audio.transcriptions.create(
+            file=(object_key, audio_stream),
+            model="whisper-large-v3",
+        )
 
         task_data = {
             "status": "completed",
@@ -53,8 +64,3 @@ def process_transcription_task(file_path_str: str, task_id: str):
             "error": f"Transcription failed: {str(e)}",
         }
         redis_client.set(task_id, json.dumps(task_data))
-    finally:
-        try:
-            os.remove(file_path)
-        except OSError as e:
-            print(f"Error removing temporary file {file_path}: {e}")

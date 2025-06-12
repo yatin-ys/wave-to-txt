@@ -1,5 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import React, {
+  useState,
+  useEffect,
+  type FormEvent,
+  type ChangeEvent,
+} from "react";
 import apiClient from "./api/client";
 import axios from "axios";
 import Header from "./components/Header";
@@ -13,30 +17,65 @@ const App: React.FC = () => {
   const [transcript, setTranscript] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [taskId, setTaskId] = useState<string | null>(null);
 
-  // Use a ref to hold the EventSource instance.
-  // This avoids issues with stale state in closures.
-  const eventSourceRef = useRef<EventSource | null>(null);
-
-  // This effect runs only once on component mount and cleans up on unmount.
   useEffect(() => {
-    // The returned function is the cleanup function.
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
+    // --- DIAGNOSTIC CONSOLE LOG ---
+    // After uploading a file, this message MUST appear in your browser's developer console.
+    // If it doesn't, the frontend code has not been updated.
+    console.log(
+      "--- useEffect hook is running. Current Task ID:",
+      taskId,
+      "---"
+    );
+    // ------------------------------
+
+    if (!taskId) {
+      return;
+    }
+
+    const eventSource = new EventSource(
+      `${apiClient.defaults.baseURL}/transcribe/stream-status/${taskId}`
+    );
+
+    eventSource.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      const { status, transcript: taskTranscript, error: taskError } = data;
+
+      if (status === "completed") {
+        setTranscript(taskTranscript);
+        setError(null);
+        setIsLoading(false);
+        setTaskId(null);
+        eventSource.close();
+      } else if (status === "failed") {
+        setError(taskError || "The transcription task failed.");
+        setTranscript(null);
+        setIsLoading(false);
+        setTaskId(null);
+        eventSource.close();
       }
     };
-  }, []); // Empty dependency array ensures this runs only on mount/unmount.
+
+    eventSource.onerror = () => {
+      setError("Connection to status stream failed. Please try again.");
+      setIsLoading(false);
+      setTaskId(null);
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [taskId]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       setSelectedFile(event.target.files[0]);
       setTranscript(null);
       setError(null);
-      // Close any existing connection when a new file is selected.
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-      }
+      setTaskId(null);
+      setIsLoading(false);
     }
   };
 
@@ -48,11 +87,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // Close any previous connection before starting a new one.
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
     setIsLoading(true);
     setError(null);
     setTranscript(null);
@@ -61,40 +95,8 @@ const App: React.FC = () => {
     formData.append("audio_file", selectedFile);
 
     try {
-      // This request returns a task_id immediately.
       const response = await apiClient.post("/transcribe", formData);
-      const newTaskId = response.data.task_id;
-
-      // Use the newTaskId immediately to create the EventSource connection.
-      const eventSource = new EventSource(
-        `${apiClient.defaults.baseURL}/transcribe/stream-status/${newTaskId}`
-      );
-
-      // Store the instance in the ref.
-      eventSourceRef.current = eventSource;
-
-      eventSource.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        const { status, transcript, error: taskError } = data;
-
-        if (status === "completed") {
-          setTranscript(transcript);
-          setError(null);
-          setIsLoading(false);
-          eventSource.close();
-        } else if (status === "failed") {
-          setError(taskError || "The transcription task failed.");
-          setTranscript(null);
-          setIsLoading(false);
-          eventSource.close();
-        }
-      };
-
-      eventSource.onerror = () => {
-        setError("Connection to status stream failed. Please try again.");
-        setIsLoading(false);
-        eventSource.close();
-      };
+      setTaskId(response.data.task_id);
     } catch (err) {
       let errorMessage = "An unexpected error occurred.";
       if (axios.isAxiosError(err)) {
