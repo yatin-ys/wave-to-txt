@@ -1,0 +1,131 @@
+.result-container {
+  margin-top: 2rem;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.result-container.success {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.result-container.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.error-icon {
+  color: #ef4444;
+  flex-shrink: 0;
+}
+
+.error-content h3 {
+  color: #ef4444;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.error-content p {
+  color: #fca5a5;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.3);
+}
+
+.result-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-button:hover {
+  background: rgba(148, 163, 184, 0.2);
+  color: white;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.transcript-content {
+  padding: 1.5rem;
+}
+
+.transcript-textarea {
+  width: 100%;
+  min-height: 200px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  padding: 1rem;
+  color: white;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.transcript-textarea:focus {
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.transcript-textarea::placeholder {
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .result-header {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+  
+  .copy-button {
+    align-self: flex-end;
+  }
+  
+  .transcript-content {
+    padding: 1rem;
+  }
+  
+  .transcript-textarea {
+    font-size: 0.85rem;
+    min-height: 150px;
+  }
+  
+  .error-container {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
