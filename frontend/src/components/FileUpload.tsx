@@ -1,7 +1,7 @@
 // frontend/src/components/FileUpload.tsx
 import React from "react";
 import type { ChangeEvent } from "react";
-import "./FileUpload.css"; // <-- Add this import
+import "./FileUpload.css";
 
 interface FileUploadProps {
   selectedFile: File | null;
@@ -20,7 +20,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
         <input
           id="audio-upload"
           type="file"
-          accept="audio/*"
+          // Updated accept attribute for better user experience
+          accept=".flac,.mp3,.mp4,.mpeg,.mpga,.m4a,.ogg,.wav,.webm,audio/*"
           onChange={onFileChange}
           className="file-input"
           disabled={isLoading}

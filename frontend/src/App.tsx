@@ -1,3 +1,4 @@
+// frontend/src/App.tsx
 import React, {
   useState,
   useEffect,
@@ -20,16 +21,6 @@ const App: React.FC = () => {
   const [taskId, setTaskId] = useState<string | null>(null);
 
   useEffect(() => {
-    // --- DIAGNOSTIC CONSOLE LOG ---
-    // After uploading a file, this message MUST appear in your browser's developer console.
-    // If it doesn't, the frontend code has not been updated.
-    console.log(
-      "--- useEffect hook is running. Current Task ID:",
-      taskId,
-      "---"
-    );
-    // ------------------------------
-
     if (!taskId) {
       return;
     }
@@ -70,13 +61,56 @@ const App: React.FC = () => {
   }, [taskId]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
-      setSelectedFile(event.target.files[0]);
-      setTranscript(null);
-      setError(null);
-      setTaskId(null);
-      setIsLoading(false);
+    // Clear previous state on new file selection
+    setTranscript(null);
+    setError(null);
+    setTaskId(null);
+    setIsLoading(false);
+    setSelectedFile(null); // Clear previous file first
+
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
     }
+
+    // --- Client-Side Validation ---
+    const MAX_FILE_SIZE_MB = 25;
+    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+    const SUPPORTED_EXTENSIONS = [
+      "flac",
+      "mp3",
+      "mp4",
+      "mpeg",
+      "mpga",
+      "m4a",
+      "ogg",
+      "wav",
+      "webm",
+    ];
+
+    // 1. Validate file size
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setError(`File size cannot exceed ${MAX_FILE_SIZE_MB} MB.`);
+      event.target.value = ""; // Reset the file input
+      return;
+    }
+
+    // 2. Validate file type based on extension
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    if (!fileExtension || !SUPPORTED_EXTENSIONS.includes(fileExtension)) {
+      setError(
+        `Unsupported file type. Supported types: ${SUPPORTED_EXTENSIONS.join(
+          ", "
+        )}.`
+      );
+      event.target.value = ""; // Reset the file input
+      return;
+    }
+    // --- End Validation ---
+
+    // If all checks pass, set the file
+    setSelectedFile(file);
   };
 
   const handleTranscribe = async (event: FormEvent) => {
@@ -178,6 +212,7 @@ const App: React.FC = () => {
 
             {isLoading && <LoadingSpinner />}
 
+            {/* The error from validation will now also be displayed here */}
             <TranscriptResult transcript={transcript} error={error} />
           </div>
         </div>
