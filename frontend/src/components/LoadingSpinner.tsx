@@ -1,4 +1,6 @@
-import React from 'react';
+// frontend/src/components/LoadingSpinner.tsx
+import React from "react";
+import "./LoadingSpinner.css"; // <-- Add this import
 
 const LoadingSpinner: React.FC = () => {
   return (

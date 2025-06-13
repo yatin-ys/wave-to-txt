@@ -1,0 +1,124 @@
+/* frontend/src/components/TranscriptResult.css */
+
+.result-container {
+  padding: 2rem;
+  border-radius: 16px;
+  margin-top: 2rem;
+  animation: fadeInUp 0.6s ease-out;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.error-container {
+  background: var(--error-bg);
+  border: 1px solid var(--error-border);
+}
+
+.success-container {
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+}
+
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.error-icon {
+  color: #ef4444;
+}
+
+.success-icon {
+  color: #22c55e;
+}
+
+.error-content h3,
+.result-header h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
+}
+
+.error-content p {
+  color: #dc2626;
+  margin-top: 0.5rem;
+}
+
+.dark .error-content p {
+  color: #fca5a5;
+}
+
+.transcript-content {
+  position: relative;
+}
+
+.transcript-textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: 1.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  font-family: "Inter", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  resize: vertical;
+  transition: all 0.3s ease;
+}
+
+.transcript-textarea:focus {
+  outline: none;
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.transcript-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--copy-button-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--copy-button-border);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.copy-button:hover {
+  background: var(--copy-button-hover);
+  border-color: var(--copy-button-border-hover);
+  transform: translateY(-1px);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .transcript-textarea {
+    min-height: 150px;
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .transcript-textarea {
+    min-height: 120px;
+    padding: 0.875rem;
+    font-size: 0.85rem;
+  }
+  .copy-button {
+    padding: 0.625rem 0.875rem;
+    font-size: 0.8rem;
+  }
+}

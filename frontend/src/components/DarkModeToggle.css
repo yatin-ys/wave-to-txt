@@ -1,0 +1,60 @@
+/* frontend/src/components/DarkModeToggle.css */
+
+.dark-mode-toggle {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.dark-mode-toggle:hover {
+  transform: scale(1.05);
+}
+
+.toggle-track {
+  width: 50px;
+  height: 26px;
+  background: var(--border-color);
+  border-radius: 50px;
+  position: relative;
+  transition: all 0.3s ease;
+  border: 2px solid var(--border-color);
+}
+
+.dark .toggle-track {
+  background: #6366f1;
+  border-color: #6366f1;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dark .toggle-thumb {
+  transform: translateX(20px);
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .dark-mode-toggle {
+    order: 2;
+  }
+}

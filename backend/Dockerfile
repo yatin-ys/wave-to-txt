@@ -1,4 +1,7 @@
-FROM python:3.11-slim-bookworm
+FROM python:3.12-slim-bookworm
+
+# Create a non-root user and group
+RUN groupadd --gid 1001 appuser && useradd --uid 1001 --gid 1001 -ms /bin/bash appuser
 
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
@@ -10,6 +13,10 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 RUN mkdir backend
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 RUN uv venv
 

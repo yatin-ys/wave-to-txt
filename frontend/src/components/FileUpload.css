@@ -1,0 +1,103 @@
+/* frontend/src/components/FileUpload.css */
+
+.file-upload-container {
+  margin-bottom: 2rem;
+}
+
+.file-upload-area {
+  position: relative;
+}
+
+.file-input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+
+.file-upload-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 2rem;
+  border: 2px dashed var(--border-color);
+  border-radius: 16px;
+  background: var(--upload-bg);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 200px;
+}
+
+.file-upload-label:hover {
+  border-color: var(--border-hover);
+  background: var(--upload-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.2);
+}
+
+.upload-icon {
+  color: #6366f1;
+  margin-bottom: 1rem;
+  animation: bounce 2s infinite;
+}
+
+.upload-text {
+  text-align: center;
+}
+
+.upload-text h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
+}
+
+.upload-text p {
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+  transition: color 0.3s ease;
+}
+
+.file-types {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .file-upload-label {
+    padding: 2rem 1rem;
+    min-height: 160px;
+  }
+  .upload-text h3 {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .file-upload-label {
+    padding: 1.5rem 0.75rem;
+    min-height: 140px;
+  }
+}
+
+@media (max-width: 480px) {
+  .file-upload-label {
+    padding: 1.25rem 0.5rem;
+    min-height: 120px;
+  }
+  .upload-text h3 {
+    font-size: 1rem;
+  }
+  .upload-text p {
+    font-size: 0.875rem;
+  }
+  .file-types {
+    font-size: 0.8rem;
+  }
+}
