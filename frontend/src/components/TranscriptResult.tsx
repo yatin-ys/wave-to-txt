@@ -1,16 +1,37 @@
 // frontend/src/components/TranscriptResult.tsx
-import React from "react";
-import "./TranscriptResult.css"; // <-- Add this import
+import React, { useState } from "react";
+import "./TranscriptResult.css";
+
+interface Utterance {
+  speaker: string | null;
+  text: string;
+}
 
 interface TranscriptResultProps {
-  transcript: string | null;
+  utterances: Utterance[] | null;
   error: string | null;
 }
 
 const TranscriptResult: React.FC<TranscriptResultProps> = ({
-  transcript,
+  utterances,
   error,
 }) => {
+  const [copyButtonText, setCopyButtonText] = useState("Copy Text");
+
+  const handleCopy = () => {
+    if (!utterances) return;
+
+    // Format the utterances into a single string for the clipboard
+    const textToCopy = utterances
+      .map((u) => (u.speaker ? `Speaker ${u.speaker}: ${u.text}` : u.text))
+      .join("\n\n");
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      setCopyButtonText("Copied!");
+      setTimeout(() => setCopyButtonText("Copy Text"), 2000);
+    });
+  };
+
   if (error) {
     return (
       <div className="result-container error-container">
@@ -55,7 +76,7 @@ const TranscriptResult: React.FC<TranscriptResultProps> = ({
     );
   }
 
-  if (transcript) {
+  if (utterances) {
     return (
       <div className="result-container success-container">
         <div className="result-header">
@@ -86,17 +107,20 @@ const TranscriptResult: React.FC<TranscriptResultProps> = ({
           <h3>Transcription Complete</h3>
         </div>
         <div className="transcript-content">
-          <textarea
-            readOnly
-            value={transcript}
-            className="transcript-textarea"
-            placeholder="Your transcription will appear here..."
-          />
+          <div className="transcript-view">
+            {utterances.map((utterance, index) => (
+              <div key={index} className="utterance">
+                {utterance.speaker && (
+                  <span className="utterance-speaker">
+                    Speaker {utterance.speaker}:
+                  </span>
+                )}
+                <span>{utterance.text}</span>
+              </div>
+            ))}
+          </div>
           <div className="transcript-actions">
-            <button
-              className="copy-button"
-              onClick={() => navigator.clipboard.writeText(transcript)}
-            >
+            <button className="copy-button" onClick={handleCopy}>
               <svg
                 width="16"
                 height="16"
@@ -122,7 +146,7 @@ const TranscriptResult: React.FC<TranscriptResultProps> = ({
                   fill="none"
                 />
               </svg>
-              Copy Text
+              {copyButtonText}
             </button>
           </div>
         </div>

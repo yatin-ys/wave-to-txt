@@ -13,12 +13,19 @@ import TranscriptResult from "./components/TranscriptResult";
 import LoadingSpinner from "./components/LoadingSpinner";
 import "./App.css";
 
+// Define the structure for a single utterance
+interface Utterance {
+  speaker: string | null;
+  text: string;
+}
+
 const App: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [transcript, setTranscript] = useState<string | null>(null);
+  const [utterances, setUtterances] = useState<Utterance[] | null>(null); // Changed from transcript
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [isDiarizationEnabled, setIsDiarizationEnabled] = useState(false); // New state for the toggle
 
   useEffect(() => {
     if (!taskId) {
@@ -31,17 +38,18 @@ const App: React.FC = () => {
 
     eventSource.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      const { status, transcript: taskTranscript, error: taskError } = data;
+      // Updated to handle the new `utterances` field
+      const { status, utterances: taskUtterances, error: taskError } = data;
 
       if (status === "completed") {
-        setTranscript(taskTranscript);
+        setUtterances(taskUtterances);
         setError(null);
         setIsLoading(false);
         setTaskId(null);
         eventSource.close();
       } else if (status === "failed") {
         setError(taskError || "The transcription task failed.");
-        setTranscript(null);
+        setUtterances(null);
         setIsLoading(false);
         setTaskId(null);
         eventSource.close();
@@ -62,7 +70,7 @@ const App: React.FC = () => {
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     // Clear previous state on new file selection
-    setTranscript(null);
+    setUtterances(null);
     setError(null);
     setTaskId(null);
     setIsLoading(false);
@@ -74,7 +82,6 @@ const App: React.FC = () => {
       return;
     }
 
-    // --- Client-Side Validation ---
     const MAX_FILE_SIZE_MB = 25;
     const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
     const SUPPORTED_EXTENSIONS = [
@@ -89,14 +96,12 @@ const App: React.FC = () => {
       "webm",
     ];
 
-    // 1. Validate file size
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setError(`File size cannot exceed ${MAX_FILE_SIZE_MB} MB.`);
-      event.target.value = ""; // Reset the file input
+      event.target.value = "";
       return;
     }
 
-    // 2. Validate file type based on extension
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
     if (!fileExtension || !SUPPORTED_EXTENSIONS.includes(fileExtension)) {
       setError(
@@ -104,12 +109,10 @@ const App: React.FC = () => {
           ", "
         )}.`
       );
-      event.target.value = ""; // Reset the file input
+      event.target.value = "";
       return;
     }
-    // --- End Validation ---
 
-    // If all checks pass, set the file
     setSelectedFile(file);
   };
 
@@ -123,13 +126,19 @@ const App: React.FC = () => {
 
     setIsLoading(true);
     setError(null);
-    setTranscript(null);
+    setUtterances(null);
 
     const formData = new FormData();
     formData.append("audio_file", selectedFile);
+    // Append the diarization flag
+    formData.append("enable_diarization", String(isDiarizationEnabled));
 
     try {
-      const response = await apiClient.post("/transcribe", formData);
+      const response = await apiClient.post("/transcribe", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
       setTaskId(response.data.task_id);
     } catch (err) {
       let errorMessage = "An unexpected error occurred.";
@@ -160,6 +169,20 @@ const App: React.FC = () => {
                 onFileChange={handleFileChange}
                 isLoading={isLoading}
               />
+
+              {/* Diarization Toggle Switch */}
+              <div className="diarization-toggle">
+                <label htmlFor="diarization-switch">
+                  Enable Speaker Diarization
+                </label>
+                <input
+                  type="checkbox"
+                  id="diarization-switch"
+                  checked={isDiarizationEnabled}
+                  onChange={(e) => setIsDiarizationEnabled(e.target.checked)}
+                  disabled={isLoading}
+                />
+              </div>
 
               <div className="form-actions">
                 <button
@@ -212,8 +235,8 @@ const App: React.FC = () => {
 
             {isLoading && <LoadingSpinner />}
 
-            {/* The error from validation will now also be displayed here */}
-            <TranscriptResult transcript={transcript} error={error} />
+            {/* Pass the new `utterances` state to the result component */}
+            <TranscriptResult utterances={utterances} error={error} />
           </div>
         </div>
       </main>

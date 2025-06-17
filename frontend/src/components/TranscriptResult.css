@@ -54,9 +54,11 @@
   position: relative;
 }
 
-.transcript-textarea {
+/* New: Transcript View replaces the textarea */
+.transcript-view {
   width: 100%;
-  min-height: 200px;
+  max-height: 400px;
+  overflow-y: auto;
   padding: 1.5rem;
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -65,14 +67,25 @@
   line-height: 1.6;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  resize: vertical;
   transition: all 0.3s ease;
 }
 
-.transcript-textarea:focus {
-  outline: none;
-  border-color: var(--border-hover);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+.utterance {
+  margin-bottom: 1rem;
+}
+
+.utterance:last-child {
+  margin-bottom: 0;
+}
+
+.utterance-speaker {
+  font-weight: 700;
+  color: #6366f1;
+  margin-right: 0.5rem;
+}
+
+.dark .utterance-speaker {
+  color: #a5b4fc;
 }
 
 .transcript-actions {
@@ -104,16 +117,14 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .transcript-textarea {
-    min-height: 150px;
+  .transcript-view {
     padding: 1rem;
     font-size: 0.9rem;
   }
 }
 
 @media (max-width: 480px) {
-  .transcript-textarea {
-    min-height: 120px;
+  .transcript-view {
     padding: 0.875rem;
     font-size: 0.85rem;
   }

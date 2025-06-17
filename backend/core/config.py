@@ -18,6 +18,9 @@ class Settings:
     R2_ACCESS_KEY_ID: str | None = os.getenv("R2_ACCESS_KEY_ID")
     R2_SECRET_ACCESS_KEY: str | None = os.getenv("R2_SECRET_ACCESS_KEY")
     R2_BUCKET_NAME: str | None = os.getenv("R2_BUCKET_NAME")
+    ASSEMBLYAI_API_KEY: str | None = os.getenv("ASSEMBLYAI_API_KEY")
+    ASSEMBLYAI_WEBHOOK_SECRET: str | None = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
+    BACKEND_BASE_URL: str | None = os.getenv("BACKEND_BASE_URL")
 
 
 settings = Settings()

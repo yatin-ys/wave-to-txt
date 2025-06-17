@@ -50,6 +50,54 @@
   transition: color 0.3s ease;
 }
 
+/* New: Diarization Toggle Styles */
+.diarization-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  cursor: pointer;
+}
+
+.diarization-toggle label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+
+.diarization-toggle input[type="checkbox"] {
+  appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 22px;
+  background-color: var(--border-color);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.diarization-toggle input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: white;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.diarization-toggle input[type="checkbox"]:checked {
+  background-color: #6366f1;
+}
+
+.diarization-toggle input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
 /* Form Actions */
 .form-actions {
   display: flex;

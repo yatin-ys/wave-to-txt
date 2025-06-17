@@ -1,6 +1,7 @@
 import uuid
 import json
 import asyncio
+import requests
 from pathlib import Path
 from fastapi import (
     APIRouter,
@@ -10,24 +11,30 @@ from fastapi import (
     Response,
     status,
     Request,
+    Form,
+    Header,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from botocore.exceptions import ClientError
 
 from backend.worker.tasks import process_transcription_task
 from backend.core.redis_client import redis_client
 
-# Import the R2 client and settings
 from backend.core.r2_client import r2_client
 from backend.core.config import settings
 
 router = APIRouter()
 
 
+class Utterance(BaseModel):
+    speaker: str | None
+    text: str
+
+
 class TaskStatus(BaseModel):
     status: str
-    transcript: str | None = None
+    utterances: list[Utterance] | None = None
     error: str | None = None
 
 
@@ -41,6 +48,7 @@ class TaskResponse(BaseModel):
 async def create_transcription(
     response: Response,
     audio_file: UploadFile = File(...),
+    enable_diarization: bool = Form(False),
 ):
     if not redis_client:
         raise HTTPException(
@@ -49,6 +57,17 @@ async def create_transcription(
     if not r2_client or not settings.R2_BUCKET_NAME:
         raise HTTPException(
             status_code=503, detail="Object storage service (R2) not available."
+        )
+
+    # For diarization, check if required settings are present early
+    if enable_diarization and (
+        not settings.ASSEMBLYAI_API_KEY
+        or not settings.BACKEND_BASE_URL
+        or not settings.ASSEMBLYAI_WEBHOOK_SECRET
+    ):
+        raise HTTPException(
+            status_code=503,
+            detail="Diarization service is not configured. Missing AssemblyAI credentials or backend URL.",
         )
 
     task_id = str(uuid.uuid4())
@@ -72,14 +91,87 @@ async def create_transcription(
         # Ensure the file handle is closed.
         await audio_file.close()
 
-    initial_data = {"status": "pending", "transcript": None, "error": None}
+    initial_data = {"status": "pending", "utterances": None, "error": None}
     redis_client.set(task_id, json.dumps(initial_data))
 
-    # Pass the R2 object_key to the Celery task, not a local file path.
-    process_transcription_task.delay(object_key, task_id)
+    # Pass the R2 object_key and diarization flag to the Celery task.
+    process_transcription_task.delay(object_key, task_id, enable_diarization)
 
     response.headers["Location"] = f"/api/transcribe/status/{task_id}"
     return {"task_id": task_id}
+
+
+# **MODIFIED PYDANTIC MODEL**
+# This now correctly represents the simple notification payload from the webhook
+class AssemblyAIWebhookPayload(BaseModel):
+    transcript_id: str
+    status: str
+    error: str | None = None
+
+
+# **ENTIRE FUNCTION REWRITTEN**
+@router.post("/webhooks/assemblyai")
+async def assemblyai_webhook(
+    task_id: str,
+    request: Request,
+    payload: AssemblyAIWebhookPayload,
+    x_webhook_secret: str = Header(None, alias="X-Webhook-Secret"),
+):
+    if not redis_client:
+        print("Webhook received but Redis is not available.")
+        return JSONResponse(
+            content={"message": "Acknowledged, but internal error occurred."},
+            status_code=200,
+        )
+
+    # 1. Validate webhook secret
+    if settings.ASSEMBLYAI_WEBHOOK_SECRET:
+        if (
+            not x_webhook_secret
+            or x_webhook_secret != settings.ASSEMBLYAI_WEBHOOK_SECRET
+        ):
+            raise HTTPException(status_code=403, detail="Invalid webhook secret.")
+
+    # 2. Process based on status
+    if payload.status == "completed":
+        try:
+            # The webhook is just a notification. We must now fetch the full transcript.
+            transcript_endpoint = (
+                f"https://api.assemblyai.com/v2/transcript/{payload.transcript_id}"
+            )
+            headers = {"authorization": settings.ASSEMBLYAI_API_KEY}
+
+            # Make the GET request to fetch the result
+            response = requests.get(transcript_endpoint, headers=headers)
+            response.raise_for_status()
+            transcript_data = response.json()
+
+            # Now we have the full data, including utterances
+            final_data = {
+                "status": "completed",
+                "utterances": transcript_data.get("utterances", []),
+                "error": None,
+            }
+            redis_client.set(task_id, json.dumps(final_data))
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch transcript from AssemblyAI: {e}")
+            error_data = {
+                "status": "failed",
+                "error": "Failed to retrieve transcript data after completion.",
+            }
+            redis_client.set(task_id, json.dumps(error_data))
+
+    elif payload.status == "error":
+        final_data = {
+            "status": "failed",
+            "utterances": None,
+            "error": payload.error or "AssemblyAI processing failed.",
+        }
+        redis_client.set(task_id, json.dumps(final_data))
+
+    return JSONResponse(
+        content={"message": "Webhook received successfully."}, status_code=200
+    )
 
 
 async def event_generator(task_id: str, request: Request):

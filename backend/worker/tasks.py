@@ -1,4 +1,5 @@
 import json
+import requests
 from botocore.exceptions import ClientError
 
 from backend.worker.celery_app import celery_app
@@ -19,10 +20,12 @@ except Exception as e:
 
 
 @celery_app.task(name="process_transcription_task")
-def process_transcription_task(object_key: str, task_id: str):
+def process_transcription_task(object_key: str, task_id: str, enable_diarization: bool):
     """
-    Celery task to transcribe audio from R2, updating status in Redis.
-    The object in R2 will now be retained and managed by a Lifecycle Rule.
+    Celery task to transcribe audio.
+    - If diarization is disabled, it uses Groq for fast transcription.
+    - If diarization is enabled, it uploads the file to AssemblyAI first,
+      then starts the transcription job via a webhook.
     """
     if not redis_client:
         print(f"Task {task_id} failed: Redis client not available.")
@@ -36,31 +39,93 @@ def process_transcription_task(object_key: str, task_id: str):
         return
 
     try:
-        if not groq_client:
-            raise Exception("Groq client not initialized.")
+        if enable_diarization:
+            # --- AssemblyAI Path (with Diarization) ---
+            if not settings.ASSEMBLYAI_API_KEY or not settings.BACKEND_BASE_URL:
+                raise Exception(
+                    "AssemblyAI or Backend URL settings are not configured."
+                )
 
-        # Stream the file directly from R2.
-        r2_object = r2_client.get_object(Bucket=settings.R2_BUCKET_NAME, Key=object_key)
-        audio_stream = r2_object["Body"]
+            # 1. Get the audio file stream from our R2 bucket
+            r2_object = r2_client.get_object(
+                Bucket=settings.R2_BUCKET_NAME, Key=object_key
+            )
+            audio_stream = r2_object["Body"]
 
-        # Pass the stream directly to the Groq client.
-        transcription = groq_client.audio.transcriptions.create(
-            file=(object_key, audio_stream),
-            model="whisper-large-v3",
-        )
+            # 2. Upload the file to AssemblyAI's /v2/upload endpoint
+            upload_headers = {"authorization": settings.ASSEMBLYAI_API_KEY}
+            upload_response = requests.post(
+                "https://api.assemblyai.com/v2/upload",
+                headers=upload_headers,
+                data=audio_stream,
+            )
+            upload_response.raise_for_status()
+            upload_url = upload_response.json()["upload_url"]
+            print(
+                f"Task {task_id}: File successfully uploaded to AssemblyAI. Upload URL: {upload_url}"
+            )
 
-        task_data = {
-            "status": "completed",
-            "transcript": transcription.text,
-            "error": None,
-        }
-        redis_client.set(task_id, json.dumps(task_data))
+            # 3. Construct the webhook URL and payload for the transcription job
+            base_url = settings.BACKEND_BASE_URL.strip("/")
+            webhook_url = f"{base_url}/api/webhooks/assemblyai?task_id={task_id}"
+
+            transcript_headers = {
+                "authorization": settings.ASSEMBLYAI_API_KEY,
+                "content-type": "application/json",
+            }
+            payload = {
+                "audio_url": upload_url,  # Use the URL provided by AssemblyAI
+                "speaker_labels": True,  # Note: speaker_diarization is also a valid param
+                "webhook_url": webhook_url,
+            }
+
+            # **MODIFIED BLOCK**
+            # Use the correct, documented parameters for webhook authentication
+            if settings.ASSEMBLYAI_WEBHOOK_SECRET:
+                payload["webhook_auth_header_name"] = "X-Webhook-Secret"
+                payload["webhook_auth_header_value"] = (
+                    settings.ASSEMBLYAI_WEBHOOK_SECRET
+                )
+
+            # 4. Submit the transcription job
+            response = requests.post(
+                "https://api.assemblyai.com/v2/transcript",
+                json=payload,
+                headers=transcript_headers,
+            )
+            response.raise_for_status()
+            print(f"Task {task_id} dispatched to AssemblyAI.")
+
+        else:
+            # --- Groq Path (No Diarization) ---
+            if not groq_client:
+                raise Exception("Groq client not initialized.")
+
+            r2_object = r2_client.get_object(
+                Bucket=settings.R2_BUCKET_NAME, Key=object_key
+            )
+            audio_stream = r2_object["Body"]
+            transcription = groq_client.audio.transcriptions.create(
+                file=(object_key, audio_stream), model="whisper-large-v3"
+            )
+            utterances = [{"speaker": None, "text": transcription.text}]
+            task_data = {
+                "status": "completed",
+                "utterances": utterances,
+                "error": None,
+            }
+            redis_client.set(task_id, json.dumps(task_data))
 
     except Exception as e:
-        print(f"Task {task_id} failed: {e}")
+        error_message = f"Processing failed: {str(e)}"
+        # If the error is a requests.HTTPError, include the response text
+        if isinstance(e, requests.exceptions.HTTPError):
+            error_message += f" - Response: {e.response.text}"
+
+        print(f"Task {task_id} failed: {error_message}")
         task_data = {
             "status": "failed",
-            "transcript": None,
-            "error": f"Transcription failed: {str(e)}",
+            "utterances": None,
+            "error": error_message,
         }
         redis_client.set(task_id, json.dumps(task_data))
