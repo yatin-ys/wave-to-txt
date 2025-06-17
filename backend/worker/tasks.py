@@ -7,7 +7,6 @@ from backend.core.redis_client import redis_client
 from backend.core.config import settings
 from groq import Groq
 
-# Import the R2 client
 from backend.core.r2_client import r2_client
 
 try:
@@ -24,8 +23,7 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
     """
     Celery task to transcribe audio.
     - If diarization is disabled, it uses Groq for fast transcription.
-    - If diarization is enabled, it uploads the file to AssemblyAI first,
-      then starts the transcription job via a webhook.
+    - If diarization is enabled, it uploads the file to AssemblyAI and uses a webhook.
     """
     if not redis_client:
         print(f"Task {task_id} failed: Redis client not available.")
@@ -40,19 +38,22 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
 
     try:
         if enable_diarization:
-            # --- AssemblyAI Path (with Diarization) ---
-            if not settings.ASSEMBLYAI_API_KEY or not settings.BACKEND_BASE_URL:
+            if not all(
+                [
+                    settings.ASSEMBLYAI_API_KEY,
+                    settings.BACKEND_BASE_URL,
+                    settings.ASSEMBLYAI_WEBHOOK_SECRET,
+                ]
+            ):
                 raise Exception(
-                    "AssemblyAI or Backend URL settings are not configured."
+                    "AssemblyAI settings (API Key, Backend URL, Webhook Secret) are not fully configured."
                 )
 
-            # 1. Get the audio file stream from our R2 bucket
             r2_object = r2_client.get_object(
                 Bucket=settings.R2_BUCKET_NAME, Key=object_key
             )
             audio_stream = r2_object["Body"]
 
-            # 2. Upload the file to AssemblyAI's /v2/upload endpoint
             upload_headers = {"authorization": settings.ASSEMBLYAI_API_KEY}
             upload_response = requests.post(
                 "https://api.assemblyai.com/v2/upload",
@@ -61,11 +62,10 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
             )
             upload_response.raise_for_status()
             upload_url = upload_response.json()["upload_url"]
-            print(
-                f"Task {task_id}: File successfully uploaded to AssemblyAI. Upload URL: {upload_url}"
-            )
 
-            # 3. Construct the webhook URL and payload for the transcription job
+            assert (
+                settings.BACKEND_BASE_URL is not None
+            ), "BACKEND_BASE_URL cannot be None here."
             base_url = settings.BACKEND_BASE_URL.strip("/")
             webhook_url = f"{base_url}/api/webhooks/assemblyai?task_id={task_id}"
 
@@ -74,20 +74,17 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 "content-type": "application/json",
             }
             payload = {
-                "audio_url": upload_url,  # Use the URL provided by AssemblyAI
-                "speaker_labels": True,  # Note: speaker_diarization is also a valid param
+                "audio_url": upload_url,
+                "speaker_labels": True,
                 "webhook_url": webhook_url,
             }
 
-            # **MODIFIED BLOCK**
-            # Use the correct, documented parameters for webhook authentication
             if settings.ASSEMBLYAI_WEBHOOK_SECRET:
                 payload["webhook_auth_header_name"] = "X-Webhook-Secret"
                 payload["webhook_auth_header_value"] = (
                     settings.ASSEMBLYAI_WEBHOOK_SECRET
                 )
 
-            # 4. Submit the transcription job
             response = requests.post(
                 "https://api.assemblyai.com/v2/transcript",
                 json=payload,
@@ -97,7 +94,6 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
             print(f"Task {task_id} dispatched to AssemblyAI.")
 
         else:
-            # --- Groq Path (No Diarization) ---
             if not groq_client:
                 raise Exception("Groq client not initialized.")
 
@@ -106,7 +102,7 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
             )
             audio_stream = r2_object["Body"]
             transcription = groq_client.audio.transcriptions.create(
-                file=(object_key, audio_stream), model="whisper-large-v3"
+                file=(object_key, audio_stream.read()), model="whisper-large-v3"
             )
             utterances = [{"speaker": None, "text": transcription.text}]
             task_data = {
@@ -118,7 +114,6 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
 
     except Exception as e:
         error_message = f"Processing failed: {str(e)}"
-        # If the error is a requests.HTTPError, include the response text
         if isinstance(e, requests.exceptions.HTTPError):
             error_message += f" - Response: {e.response.text}"
 
