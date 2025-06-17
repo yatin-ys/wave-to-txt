@@ -9,8 +9,8 @@ import apiClient from "./api/client";
 import axios from "axios";
 import Header from "./components/Header";
 import FileUpload from "./components/FileUpload";
-import TranscriptResult from "./components/TranscriptResult";
 import LoadingSpinner from "./components/LoadingSpinner";
+import TranscriptEditor from "./components/TranscriptEditor"; // New import
 import "./App.css";
 
 // Define the structure for a single utterance
@@ -21,11 +21,11 @@ interface Utterance {
 
 const App: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [utterances, setUtterances] = useState<Utterance[] | null>(null); // Changed from transcript
+  const [utterances, setUtterances] = useState<Utterance[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
-  const [isDiarizationEnabled, setIsDiarizationEnabled] = useState(false); // New state for the toggle
+  const [isDiarizationEnabled, setIsDiarizationEnabled] = useState(false);
 
   useEffect(() => {
     if (!taskId) {
@@ -38,7 +38,6 @@ const App: React.FC = () => {
 
     eventSource.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      // Updated to handle the new `utterances` field
       const { status, utterances: taskUtterances, error: taskError } = data;
 
       if (status === "completed") {
@@ -69,46 +68,18 @@ const App: React.FC = () => {
   }, [taskId]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    // Clear previous state on new file selection
     setUtterances(null);
     setError(null);
     setTaskId(null);
     setIsLoading(false);
-    setSelectedFile(null); // Clear previous file first
+    setSelectedFile(null);
 
     const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
+    if (!file) return;
 
     const MAX_FILE_SIZE_MB = 25;
-    const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-    const SUPPORTED_EXTENSIONS = [
-      "flac",
-      "mp3",
-      "mp4",
-      "mpeg",
-      "mpga",
-      "m4a",
-      "ogg",
-      "wav",
-      "webm",
-    ];
-
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       setError(`File size cannot exceed ${MAX_FILE_SIZE_MB} MB.`);
-      event.target.value = "";
-      return;
-    }
-
-    const fileExtension = file.name.split(".").pop()?.toLowerCase();
-    if (!fileExtension || !SUPPORTED_EXTENSIONS.includes(fileExtension)) {
-      setError(
-        `Unsupported file type. Supported types: ${SUPPORTED_EXTENSIONS.join(
-          ", "
-        )}.`
-      );
       event.target.value = "";
       return;
     }
@@ -118,7 +89,6 @@ const App: React.FC = () => {
 
   const handleTranscribe = async (event: FormEvent) => {
     event.preventDefault();
-
     if (!selectedFile) {
       setError("Please select an audio file first.");
       return;
@@ -130,14 +100,11 @@ const App: React.FC = () => {
 
     const formData = new FormData();
     formData.append("audio_file", selectedFile);
-    // Append the diarization flag
     formData.append("enable_diarization", String(isDiarizationEnabled));
 
     try {
       const response = await apiClient.post("/transcribe", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+        headers: { "Content-Type": "multipart/form-data" },
       });
       setTaskId(response.data.task_id);
     } catch (err) {
@@ -152,25 +119,76 @@ const App: React.FC = () => {
     }
   };
 
+  const renderResults = () => {
+    if (isLoading) {
+      return <LoadingSpinner />;
+    }
+    if (error) {
+      return (
+        <div className="error-display">
+          <div className="error-icon">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="15"
+                y1="9"
+                x2="9"
+                y2="15"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <line
+                x1="9"
+                y1="9"
+                x2="15"
+                y2="15"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          </div>
+          <div className="error-content">
+            <h3>Transcription Failed</h3>
+            <p>{error}</p>
+          </div>
+        </div>
+      );
+    }
+    if (utterances) {
+      return <TranscriptEditor utterances={utterances} />;
+    }
+    return null;
+  };
+
   return (
     <div className="app">
       <Header />
-
       <main className="main-content">
         <div className="container">
-          <div className="content-section">
+          {/* Left Column for Controls */}
+          <div className="controls-column">
             <div className="intro-text">
               <h2>Transform Audio to Text</h2>
+              <p>Upload your file and get a transcript in seconds.</p>
             </div>
-
             <form onSubmit={handleTranscribe} className="transcription-form">
               <FileUpload
                 selectedFile={selectedFile}
                 onFileChange={handleFileChange}
                 isLoading={isLoading}
               />
-
-              {/* Diarization Toggle Switch */}
               <div className="diarization-toggle">
                 <label htmlFor="diarization-switch">
                   Enable Speaker Diarization
@@ -183,7 +201,6 @@ const App: React.FC = () => {
                   disabled={isLoading}
                 />
               </div>
-
               <div className="form-actions">
                 <button
                   type="submit"
@@ -232,12 +249,10 @@ const App: React.FC = () => {
                 </button>
               </div>
             </form>
-
-            {isLoading && <LoadingSpinner />}
-
-            {/* Pass the new `utterances` state to the result component */}
-            <TranscriptResult utterances={utterances} error={error} />
           </div>
+
+          {/* Right Column for Results */}
+          <div className="results-column">{renderResults()}</div>
         </div>
       </main>
     </div>
