@@ -15,6 +15,7 @@ interface StatusUpdate {
   status: "pending" | "processing" | "completed" | "failed";
   utterances: Utterance[] | null;
   error: string | null;
+  audio_url: string | null;
 }
 
 type TranscriptionStatus =
@@ -29,6 +30,7 @@ export const useTranscription = () => {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<Utterance[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -58,6 +60,9 @@ export const useTranscription = () => {
               setStatus("completed");
               if (statusUpdate.utterances) {
                 setTranscript(statusUpdate.utterances);
+              }
+              if (statusUpdate.audio_url) {
+                setAudioUrl(statusUpdate.audio_url);
               }
               closeEventSource();
               break;
@@ -97,6 +102,7 @@ export const useTranscription = () => {
         setStatus("uploading");
         setError(null);
         setTranscript([]);
+        setAudioUrl(null);
 
         const formData = new FormData();
         formData.append("audio_file", file);
@@ -140,6 +146,7 @@ export const useTranscription = () => {
     setTaskId(null);
     setTranscript([]);
     setError(null);
+    setAudioUrl(null);
   }, [closeEventSource]);
 
   return {
@@ -147,6 +154,7 @@ export const useTranscription = () => {
     taskId,
     transcript,
     error,
+    audioUrl,
     startTranscription,
     resetTranscription,
   };

@@ -36,3 +36,31 @@ if (
         r2_client = None
 else:
     print("Cloudflare R2 settings are not fully configured; R2 client not initialized.")
+
+
+def generate_presigned_url(object_key: str, expiration: int = 43200) -> str | None:
+    """
+    Generates a pre-signed URL to share an R2 object.
+
+    Args:
+        object_key: The key of the object in the R2 bucket.
+        expiration: Time in seconds for the pre-signed URL to remain valid.
+                    Defaults to 43200 (12 hours).
+
+    Returns:
+        The pre-signed URL as a string, or None if an error occurs.
+    """
+    if not r2_client:
+        print("R2 client not initialized. Cannot generate pre-signed URL.")
+        return None
+
+    try:
+        url = r2_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": settings.R2_BUCKET_NAME, "Key": object_key},
+            ExpiresIn=expiration,
+        )
+        return url
+    except ClientError as e:
+        print(f"Error generating pre-signed URL: {e}")
+        return None

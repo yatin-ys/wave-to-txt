@@ -7,7 +7,7 @@ from backend.core.redis_client import redis_client
 from backend.core.config import settings
 from groq import Groq
 
-from backend.core.r2_client import r2_client
+from backend.core.r2_client import r2_client, generate_presigned_url
 
 try:
     if not settings.GROQ_API_KEY:
@@ -105,10 +105,14 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 file=(object_key, audio_stream.read()), model="whisper-large-v3"
             )
             utterances = [{"speaker": None, "text": transcription.text}]
+
+            audio_url = generate_presigned_url(object_key)
+
             task_data = {
                 "status": "completed",
                 "utterances": utterances,
                 "error": None,
+                "audio_url": audio_url,
             }
             redis_client.set(task_id, json.dumps(task_data))
 

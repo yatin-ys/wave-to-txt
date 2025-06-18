@@ -21,7 +21,7 @@ from botocore.exceptions import ClientError
 from backend.worker.tasks import process_transcription_task
 from backend.core.redis_client import redis_client
 
-from backend.core.r2_client import r2_client
+from backend.core.r2_client import r2_client, generate_presigned_url
 from backend.core.config import settings
 
 router = APIRouter()
@@ -36,6 +36,7 @@ class TaskStatus(BaseModel):
     status: str
     utterances: list[Utterance] | None = None
     error: str | None = None
+    audio_url: str | None = None
 
 
 class TaskResponse(BaseModel):
@@ -88,7 +89,13 @@ async def create_transcription(
     finally:
         await audio_file.close()
 
-    initial_data = {"status": "pending", "utterances": None, "error": None}
+    initial_data = {
+        "status": "pending",
+        "utterances": None,
+        "error": None,
+        "audio_url": None,
+        "object_key": object_key,
+    }
     redis_client.set(task_id, json.dumps(initial_data))
 
     process_transcription_task.delay(object_key, task_id, enable_diarization)
@@ -135,10 +142,34 @@ async def assemblyai_webhook(
             response.raise_for_status()
             transcript_data = response.json()
 
+            task_json = redis_client.get(task_id)
+            if not task_json:
+                print(f"Task {task_id} not found in Redis for webhook completion.")
+                final_data = {
+                    "status": "completed",
+                    "utterances": transcript_data.get("utterances", []),
+                    "error": None,
+                    "audio_url": None,
+                }
+                redis_client.set(task_id, json.dumps(final_data))
+                return JSONResponse(
+                    content={"message": "Webhook received, but task data lost."},
+                    status_code=200,
+                )
+
+            assert isinstance(task_json, str)
+            current_task_data = json.loads(task_json)
+            object_key = current_task_data.get("object_key")
+
+            audio_url = None
+            if object_key:
+                audio_url = generate_presigned_url(object_key)
+
             final_data = {
                 "status": "completed",
                 "utterances": transcript_data.get("utterances", []),
                 "error": None,
+                "audio_url": audio_url,
             }
             redis_client.set(task_id, json.dumps(final_data))
 
@@ -158,6 +189,7 @@ async def assemblyai_webhook(
             "utterances": None,
             "error": payload.error
             or "AssemblyAI processing failed with an unknown error.",
+            "audio_url": None,
         }
         redis_client.set(task_id, json.dumps(final_data))
 
@@ -181,6 +213,7 @@ async def event_generator(task_id: str, request: Request):
         if task_json:
             assert isinstance(task_json, str)
             task_data = json.loads(task_json)
+            task_data.pop("object_key", None)
             yield f"data: {json.dumps(task_data)}\n\n"
             if task_data["status"] in ["completed", "failed"]:
                 break
@@ -208,4 +241,6 @@ async def get_status(task_id: str):
     if not task_json:
         raise HTTPException(status_code=404, detail="Task not found.")
     assert isinstance(task_json, str)
-    return json.loads(task_json)
+    task_data = json.loads(task_json)
+    task_data.pop("object_key", None)
+    return task_data

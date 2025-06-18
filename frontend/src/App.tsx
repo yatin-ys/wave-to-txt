@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { MainLayout } from "@/layouts/MainLayout";
 import { FileUploader } from "@/components/custom/FileUploader";
 import { TiptapEditor } from "@/components/custom/TiptapEditor";
@@ -14,8 +14,16 @@ import { Loader2, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [enableDiarization, setEnableDiarization] = useState(false);
-  const { status, transcript, error, startTranscription, resetTranscription } =
-    useTranscription();
+  const {
+    status,
+    transcript,
+    error,
+    audioUrl,
+    startTranscription,
+    resetTranscription,
+  } = useTranscription();
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const handleTranscribe = () => {
     if (selectedFile) {
@@ -27,6 +35,17 @@ function App() {
     resetTranscription();
     setSelectedFile(null);
     setEnableDiarization(false);
+    setPlaybackRate(1);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = 1;
+    }
+  };
+
+  const handlePlaybackRateChange = (rate: number) => {
+    setPlaybackRate(rate);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = rate;
+    }
   };
 
   const getStatusMessage = () => {
@@ -154,6 +173,37 @@ function App() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
+                )}
+
+                {isCompleted && audioUrl && (
+                  <div className="flex flex-col space-y-4 pt-4 border-t mt-4">
+                    <audio
+                      ref={audioRef}
+                      src={audioUrl}
+                      controls
+                      className="w-full"
+                      onRateChange={() => {
+                        if (audioRef.current) {
+                          setPlaybackRate(audioRef.current.playbackRate);
+                        }
+                      }}
+                    />
+                    <div className="flex items-center space-x-2">
+                      <Label className="text-sm font-medium">
+                        Playback Speed:
+                      </Label>
+                      {[0.5, 1, 1.5, 2].map((rate) => (
+                        <Button
+                          key={rate}
+                          size="sm"
+                          variant={playbackRate === rate ? "default" : "outline"}
+                          onClick={() => handlePlaybackRateChange(rate)}
+                        >
+                          {rate}x
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </CardContent>
