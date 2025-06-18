@@ -1,10 +1,31 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import {
+  Copy,
+  FileText,
+  FileDown,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Copy, FileText } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { saveAs } from "file-saver";
+import {
+  Packer,
+  Document as DocxDocument,
+  Paragraph,
+  TextRun,
+  type IRunOptions,
+} from "docx";
+import { pdf } from "@react-pdf/renderer";
+import { TranscriptPDF } from "./TranscriptPDF";
 
 interface Utterance {
   speaker: string | null;
@@ -17,10 +38,12 @@ interface TiptapEditorProps {
 }
 
 export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
+  const [isEditable, setIsEditable] = useState(false);
+
   const editor = useEditor({
     extensions: [StarterKit],
     content: "",
-    editable: false,
+    editable: isEditable,
     editorProps: {
       attributes: {
         class:
@@ -30,7 +53,13 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
   });
 
   useEffect(() => {
-    if (!editor) return;
+    if (editor) {
+      editor.setEditable(isEditable);
+    }
+  }, [isEditable, editor]);
+
+  useEffect(() => {
+    if (!editor || (editor.isFocused && isEditable)) return;
 
     if (utterances.length === 0) {
       editor.commands.setContent("");
@@ -47,6 +76,10 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
       .join("");
 
     editor.commands.setContent(formattedContent);
+    // When new utterances are loaded, exit edit mode
+    if (utterances.length > 0) {
+      setIsEditable(false);
+    }
   }, [utterances, editor]);
 
   const copyToClipboard = async () => {
@@ -67,29 +100,157 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
     }
   };
 
+  const handlePdfExport = async () => {
+    if (!editor) return;
+
+    try {
+      toast.info("Generating PDF...", {
+        description: "This may take a moment.",
+      });
+
+      const content = editor.getJSON();
+      const doc = <TranscriptPDF content={content} />;
+      const blob = await pdf(doc).toBlob();
+      
+      saveAs(blob, "transcript.pdf");
+
+      toast.success("PDF Exported Successfully");
+    } catch (error) {
+      console.error("Failed to export as PDF:", error);
+      toast.error("PDF Export Failed");
+    }
+  };
+
+  const exportAs = async (format: "txt" | "docx") => {
+    if (!editor) return;
+
+    const contentHTML = editor.getHTML();
+    const elementForDocx = document.createElement("div");
+    elementForDocx.innerHTML = contentHTML;
+    document.body.appendChild(elementForDocx);
+
+    if (format === "txt") {
+      const text = editor.getText();
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      saveAs(blob, "transcript.txt");
+      toast.success("Exported as TXT");
+    } else if (format === "docx") {
+      try {
+        const processNodesToRuns = (
+          nodes: NodeListOf<ChildNode>
+        ): IRunOptions[] => {
+          const runs: IRunOptions[] = [];
+          nodes.forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+              if (node.textContent) {
+                runs.push({ text: node.textContent });
+              }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              const el = node as HTMLElement;
+              const tagName = el.tagName.toUpperCase();
+              const childRuns = processNodesToRuns(el.childNodes);
+
+              const newRuns = childRuns.map((run) => ({
+                ...run,
+                bold: (tagName === "STRONG" || tagName === "B") || run.bold,
+                italics: (tagName === "EM" || tagName === "I") || run.italics,
+                strike:
+                  (tagName === "S" ||
+                    tagName === "STRIKE" ||
+                    tagName === "DEL") ||
+                  run.strike,
+              }));
+              runs.push(...newRuns);
+            }
+          });
+          return runs;
+        };
+
+        const paragraphs: Paragraph[] = Array.from(elementForDocx.children).map(
+          (p) => {
+            const runOptions = processNodesToRuns(p.childNodes);
+            return new Paragraph({
+              children: runOptions.map((opts) => new TextRun(opts)),
+            });
+          }
+        );
+
+        const doc = new DocxDocument({
+          sections: [
+            {
+              children: paragraphs,
+            },
+          ],
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, "transcript.docx");
+        toast.success("Exported as DOCX");
+      } catch (error) {
+        console.error("Failed to export as DOCX:", error);
+        toast.error("DOCX Export Failed");
+      }
+    }
+
+    document.body.removeChild(elementForDocx);
+  };
+
   const isEmpty = utterances.length === 0;
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center space-x-2">
           <FileText className="h-5 w-5 text-muted-foreground" />
           <h3 className="text-lg font-semibold">Transcript</h3>
         </div>
         {!isEmpty && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={copyToClipboard}
-            className="flex items-center space-x-2"
-          >
-            <Copy className="h-4 w-4" />
-            <span>Copy</span>
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant={isEditable ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setIsEditable(!isEditable)}
+              className="flex items-center space-x-2"
+            >
+              <span>{isEditable ? "Lock" : "Edit"}</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyToClipboard}
+              className="flex items-center space-x-2"
+            >
+              <Copy className="h-4 w-4" />
+              <span>Copy</span>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center space-x-2"
+                >
+                  <FileDown className="h-4 w-4" />
+                  <span>Export</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => exportAs("txt")}>
+                  as TXT
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handlePdfExport}>
+                  as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAs("docx")}>
+                  as DOCX
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
 
-      <div className="flex-1 border rounded-lg overflow-hidden bg-background">
+      <div className="flex-1 border rounded-lg overflow-hidden bg-background flex flex-col">
         {isEmpty ? (
           <div className="flex items-center justify-center h-full text-center p-8">
             <div className="space-y-3">
@@ -100,7 +261,7 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
             </div>
           </div>
         ) : (
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-y-auto flex-1">
             <EditorContent editor={editor} />
           </div>
         )}
