@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import apiClient from "@/api/client";
 import axios from "axios";
 
@@ -39,6 +39,57 @@ export const useTranscription = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (taskId && status === "processing") {
+      const newEventSource = new EventSource(
+        `/api/transcribe/stream-status/${taskId}`
+      );
+      eventSourceRef.current = newEventSource;
+
+      newEventSource.onmessage = (event) => {
+        try {
+          const statusUpdate: StatusUpdate = JSON.parse(event.data);
+          switch (statusUpdate.status) {
+            case "pending":
+            case "processing":
+              setStatus("processing");
+              break;
+            case "completed":
+              setStatus("completed");
+              if (statusUpdate.utterances) {
+                setTranscript(statusUpdate.utterances);
+              }
+              closeEventSource();
+              break;
+            case "failed":
+              setStatus("failed");
+              setError(statusUpdate.error || "An unknown error occurred.");
+              closeEventSource();
+              break;
+          }
+        } catch (parseError) {
+          console.error("Error parsing SSE data:", parseError);
+          setStatus("failed");
+          setError("Error processing server response.");
+          closeEventSource();
+        }
+      };
+
+      newEventSource.onerror = (event) => {
+        console.error("SSE error:", event);
+        setStatus("failed");
+        setError(
+          "A connection error occurred while tracking transcription status."
+        );
+        closeEventSource();
+      };
+
+      return () => {
+        closeEventSource();
+      };
+    }
+  }, [taskId, status, closeEventSource]);
+
   const startTranscription = useCallback(
     async (file: File, enableDiarization: boolean) => {
       try {
@@ -63,49 +114,6 @@ export const useTranscription = () => {
         const data = response.data;
         setTaskId(data.task_id);
         setStatus("processing");
-
-        const newEventSource = new EventSource(
-          `/api/transcribe/stream-status/${data.task_id}`
-        );
-        eventSourceRef.current = newEventSource;
-
-        newEventSource.onmessage = (event) => {
-          try {
-            const statusUpdate: StatusUpdate = JSON.parse(event.data);
-            switch (statusUpdate.status) {
-              case "pending":
-              case "processing":
-                setStatus("processing");
-                break;
-              case "completed":
-                setStatus("completed");
-                if (statusUpdate.utterances) {
-                  setTranscript(statusUpdate.utterances);
-                }
-                closeEventSource();
-                break;
-              case "failed":
-                setStatus("failed");
-                setError(statusUpdate.error || "An unknown error occurred.");
-                closeEventSource();
-                break;
-            }
-          } catch (parseError) {
-            console.error("Error parsing SSE data:", parseError);
-            setStatus("failed");
-            setError("Error processing server response.");
-            closeEventSource();
-          }
-        };
-
-        newEventSource.onerror = (event) => {
-          console.error("SSE error:", event);
-          setStatus("failed");
-          setError(
-            "A connection error occurred while tracking transcription status."
-          );
-          closeEventSource();
-        };
       } catch (uploadError: unknown) {
         console.error("Upload/Start error:", uploadError);
         setStatus("failed");
