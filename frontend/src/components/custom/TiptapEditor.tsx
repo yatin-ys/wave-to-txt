@@ -1,11 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import {
-  Copy,
-  FileText,
-  FileDown,
-} from "lucide-react";
+import { Copy, FileText, FileDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +22,8 @@ import {
 } from "docx";
 import { pdf } from "@react-pdf/renderer";
 import { TranscriptPDF } from "./TranscriptPDF";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 interface Utterance {
   speaker: string | null;
@@ -39,6 +37,7 @@ interface TiptapEditorProps {
 
 export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
   const [isEditable, setIsEditable] = useState(false);
+  const [speakerNames, setSpeakerNames] = useState<Record<string, string>>({});
 
   const editor = useEditor({
     extensions: [StarterKit],
@@ -59,6 +58,20 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
   }, [isEditable, editor]);
 
   useEffect(() => {
+    if (utterances.length > 0) {
+      const uniqueSpeakers = Array.from(
+        new Set(utterances.map((u) => u.speaker).filter(Boolean))
+      ) as string[];
+      const initialSpeakerNames = uniqueSpeakers.reduce((acc, speaker) => {
+        acc[speaker] = `Speaker ${speaker}`;
+        return acc;
+      }, {} as Record<string, string>);
+      setSpeakerNames(initialSpeakerNames);
+      setIsEditable(false);
+    }
+  }, [utterances]);
+
+  useEffect(() => {
     if (!editor || (editor.isFocused && isEditable)) return;
 
     if (utterances.length === 0) {
@@ -69,7 +82,9 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
     const formattedContent = utterances
       .map(({ speaker, text }) => {
         if (speaker) {
-          return `<p><strong>Speaker ${speaker}:</strong> ${text}</p>`;
+          return `<p><strong>${
+            speakerNames[speaker] || `Speaker ${speaker}`
+          }:</strong> ${text}</p>`;
         }
         return `<p>${text}</p>`;
       })
@@ -77,10 +92,12 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
 
     editor.commands.setContent(formattedContent);
     // When new utterances are loaded, exit edit mode
-    if (utterances.length > 0) {
-      setIsEditable(false);
-    }
-  }, [utterances, editor]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [utterances, editor, speakerNames]);
+
+  const handleSpeakerNameChange = (speaker: string, newName: string) => {
+    setSpeakerNames((prev) => ({ ...prev, [speaker]: newName }));
+  };
 
   const copyToClipboard = async () => {
     if (!editor) return;
@@ -111,7 +128,7 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
       const content = editor.getJSON();
       const doc = <TranscriptPDF content={content} />;
       const blob = await pdf(doc).toBlob();
-      
+
       saveAs(blob, "transcript.pdf");
 
       toast.success("PDF Exported Successfully");
@@ -152,12 +169,12 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
 
               const newRuns = childRuns.map((run) => ({
                 ...run,
-                bold: (tagName === "STRONG" || tagName === "B") || run.bold,
-                italics: (tagName === "EM" || tagName === "I") || run.italics,
+                bold: tagName === "STRONG" || tagName === "B" || run.bold,
+                italics: tagName === "EM" || tagName === "I" || run.italics,
                 strike:
-                  (tagName === "S" ||
-                    tagName === "STRIKE" ||
-                    tagName === "DEL") ||
+                  tagName === "S" ||
+                  tagName === "STRIKE" ||
+                  tagName === "DEL" ||
                   run.strike,
               }));
               runs.push(...newRuns);
@@ -196,6 +213,9 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
   };
 
   const isEmpty = utterances.length === 0;
+  const uniqueSpeakers = Array.from(
+    new Set(utterances.map((u) => u.speaker).filter(Boolean))
+  ) as string[];
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
@@ -249,7 +269,26 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
           </div>
         )}
       </div>
-
+      {!isEmpty && isEditable && uniqueSpeakers.length > 0 && (
+        <div className="mb-4 p-4 border rounded-lg bg-muted/20">
+          <h4 className="text-md font-semibold mb-2">Speakers</h4>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {uniqueSpeakers.map((speaker) => (
+              <div key={speaker} className="flex flex-col space-y-2">
+                <Label htmlFor={`speaker-${speaker}`}>Speaker {speaker}</Label>
+                <Input
+                  id={`speaker-${speaker}`}
+                  value={speakerNames[speaker] || ""}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    handleSpeakerNameChange(speaker, e.target.value)
+                  }
+                  className="h-8"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex-1 border rounded-lg overflow-hidden bg-background flex flex-col">
         {isEmpty ? (
           <div className="flex items-center justify-center h-full text-center p-8">
