@@ -1,11 +1,5 @@
 import React from "react";
-import {
-  Page,
-  Text,
-  View,
-  Document,
-  StyleSheet,
-} from "@react-pdf/renderer";
+import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
 import type { JSONContent } from "@tiptap/react";
 import type { Style } from "@react-pdf/types";
 
@@ -51,7 +45,10 @@ interface TranscriptPDFProps {
   content: JSONContent;
 }
 
-const renderNode = (node: JSONContent, index: number): React.ReactElement | null => {
+const renderNode = (
+  node: JSONContent,
+  index: number
+): React.ReactElement | null => {
   if (node.type === "paragraph") {
     return (
       <View key={index} style={styles.paragraph}>
@@ -89,4 +86,4 @@ export const TranscriptPDF = ({ content }: TranscriptPDFProps) => (
       {content?.content?.map((node, index) => renderNode(node, index))}
     </Page>
   </Document>
-); 
+);

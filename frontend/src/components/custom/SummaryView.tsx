@@ -120,7 +120,10 @@ export const SummaryView = ({
         Generate a concise summary of the transcription to quickly understand
         the main points.
       </p>
-      <Button onClick={onGenerateSummary} disabled={summaryStatus === 'pending'}>
+      <Button
+        onClick={onGenerateSummary}
+        disabled={summaryStatus === "pending"}
+      >
         <Sparkles className="mr-2 h-4 w-4" />
         Generate Summary
       </Button>

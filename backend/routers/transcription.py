@@ -125,7 +125,9 @@ async def summarize_transcription(task_id: str):
     task_data = json.loads(task_json)
 
     if task_data.get("status") != "completed":
-        raise HTTPException(status_code=400, detail="Transcription is not yet complete.")
+        raise HTTPException(
+            status_code=400, detail="Transcription is not yet complete."
+        )
 
     if task_data.get("summary_status") in ["pending", "completed"]:
         return JSONResponse(

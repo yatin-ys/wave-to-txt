@@ -1,9 +1,9 @@
-import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
   page: {
     padding: 30,
-    fontFamily: 'Helvetica',
+    fontFamily: "Helvetica",
   },
   section: {
     marginBottom: 10,
@@ -25,4 +25,4 @@ export const SummaryPDF = ({ summary }: SummaryPDFProps) => (
       </View>
     </Page>
   </Document>
-); 
+);
