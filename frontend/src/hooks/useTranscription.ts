@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import apiClient from "@/api/client";
 import axios from "axios";
+import { toast } from "sonner";
 
 interface Utterance {
   speaker: string | null;
@@ -63,13 +64,6 @@ export const useTranscription = () => {
         try {
           const statusUpdate: StatusUpdate = JSON.parse(event.data);
 
-          if (statusUpdate.status) {
-            statusRef.current = statusUpdate.status;
-          }
-          if (statusUpdate.summary_status) {
-            summaryStatusRef.current = statusUpdate.summary_status;
-          }
-
           if (statusUpdate.summary_status) {
             setSummaryStatus(statusUpdate.summary_status);
           }
@@ -86,6 +80,9 @@ export const useTranscription = () => {
               setStatus("processing");
               break;
             case "completed":
+              if (statusRef.current !== "completed") {
+                toast.success("Transcription complete!");
+              }
               setStatus("completed");
               if (
                 statusUpdate.utterances &&
@@ -99,15 +96,29 @@ export const useTranscription = () => {
               }
               break;
             case "failed":
+              if (statusRef.current !== "failed") {
+                toast.error("Transcription failed", {
+                  description:
+                    statusUpdate.error || "An unknown error occurred.",
+                });
+              }
               setStatus("failed");
               setError(statusUpdate.error || "An unknown error occurred.");
               closeEventSource();
               break;
           }
+
+          if (statusUpdate.status) {
+            statusRef.current = statusUpdate.status;
+          }
+          if (statusUpdate.summary_status) {
+            summaryStatusRef.current = statusUpdate.summary_status;
+          }
         } catch (parseError) {
           console.error("Error parsing SSE data:", parseError);
           setStatus("failed");
           setError("Error processing server response.");
+          toast.error("Error processing server response.");
           closeEventSource();
         }
       };
@@ -125,6 +136,9 @@ export const useTranscription = () => {
         setError(
           "A connection error occurred while tracking transcription status."
         );
+        toast.error(
+          "A connection error occurred while tracking transcription status."
+        );
         closeEventSource();
       };
 
@@ -136,9 +150,11 @@ export const useTranscription = () => {
 
   const startTranscription = useCallback(
     async (file: File, enableDiarization: boolean) => {
+      let toastId: string | number | undefined;
       try {
         closeEventSource();
         setStatus("uploading");
+        toastId = toast.loading("Uploading audio file...");
         setError(null);
         setTranscript([]);
         setAudioUrl(null);
@@ -162,6 +178,9 @@ export const useTranscription = () => {
         const data = response.data;
         setTaskId(data.task_id);
         setStatus("processing");
+        toast.success("Upload complete! Starting transcription...", {
+          id: toastId,
+        });
       } catch (uploadError: unknown) {
         console.error("Upload/Start error:", uploadError);
         setStatus("failed");
@@ -177,6 +196,7 @@ export const useTranscription = () => {
         }
 
         setError(errorMessage);
+        toast.error(errorMessage, { id: toastId });
       }
     },
     [closeEventSource]

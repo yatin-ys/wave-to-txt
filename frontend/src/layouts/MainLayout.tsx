@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { AudioWaveform as Waveform } from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -28,6 +29,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
           {children}
         </div>
       </main>
+      <Toaster />
     </div>
   );
 };

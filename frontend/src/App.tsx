@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, PlayCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SummaryView } from "@/components/custom/SummaryView";
 import { summarizeTranscription } from "@/api/client";
@@ -20,7 +18,6 @@ function App() {
   const {
     status,
     transcript,
-    error,
     audioUrl,
     summary,
     summaryStatus,
@@ -61,34 +58,6 @@ function App() {
     setPlaybackRate(rate);
     if (audioRef.current) {
       audioRef.current.playbackRate = rate;
-    }
-  };
-
-  const getStatusMessage = () => {
-    switch (status) {
-      case "uploading":
-        return "Uploading audio file...";
-      case "processing":
-        return "Processing transcription...";
-      case "completed":
-        return "Transcription completed successfully!";
-      case "failed":
-        return "Transcription failed";
-      default:
-        return "";
-    }
-  };
-
-  const getProgressValue = () => {
-    switch (status) {
-      case "uploading":
-        return 25;
-      case "processing":
-        return 75;
-      case "completed":
-        return 100;
-      default:
-        return 0;
     }
   };
 
@@ -161,38 +130,18 @@ function App() {
         </Card>
 
         {/* Status Card */}
-        {(isProcessing || isCompleted || hasError) && (
+        {isCompleted && (
           <Card className="flex-shrink-0">
-            <CardContent className="pt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <PlayCircle className="h-5 w-5" />
+                <span>Audio Player</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  {isProcessing && (
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  )}
-                  {isCompleted && (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  )}
-                  {hasError && (
-                    <AlertCircle className="h-5 w-5 text-destructive" />
-                  )}
-                  <span className="text-sm font-medium">
-                    {getStatusMessage()}
-                  </span>
-                </div>
-
-                {isProcessing && (
-                  <Progress value={getProgressValue()} className="w-full" />
-                )}
-
-                {hasError && error && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-
-                {isCompleted && audioUrl && (
-                  <div className="flex flex-col space-y-4 pt-4 border-t mt-4">
+                {audioUrl && (
+                  <div className="flex flex-col space-y-4">
                     <audio
                       ref={audioRef}
                       src={audioUrl}
