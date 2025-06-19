@@ -1,15 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { Copy, FileText, FileDown } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { saveAs } from "file-saver";
@@ -24,6 +16,7 @@ import { pdf } from "@react-pdf/renderer";
 import { TranscriptPDF } from "./TranscriptPDF";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { ActionToolbar } from "./ActionToolbar";
 
 interface Utterance {
   speaker: string | null;
@@ -117,29 +110,28 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
     }
   };
 
-  const handlePdfExport = async () => {
+  const handleExport = async (format: "txt" | "pdf" | "docx") => {
     if (!editor) return;
 
-    try {
-      toast.info("Generating PDF...", {
-        description: "This may take a moment.",
-      });
+    if (format === "pdf") {
+      try {
+        toast.info("Generating PDF...", {
+          description: "This may take a moment.",
+        });
 
-      const content = editor.getJSON();
-      const doc = <TranscriptPDF content={content} />;
-      const blob = await pdf(doc).toBlob();
+        const content = editor.getJSON();
+        const doc = <TranscriptPDF content={content} />;
+        const blob = await pdf(doc).toBlob();
 
-      saveAs(blob, "transcript.pdf");
+        saveAs(blob, "transcript.pdf");
 
-      toast.success("PDF Exported Successfully");
-    } catch (error) {
-      console.error("Failed to export as PDF:", error);
-      toast.error("PDF Export Failed");
+        toast.success("PDF Exported Successfully");
+      } catch (error) {
+        console.error("Failed to export as PDF:", error);
+        toast.error("PDF Export Failed");
+      }
+      return;
     }
-  };
-
-  const exportAs = async (format: "txt" | "docx") => {
-    if (!editor) return;
 
     const contentHTML = editor.getHTML();
     const elementForDocx = document.createElement("div");
@@ -225,48 +217,13 @@ export const TiptapEditor = ({ utterances, className }: TiptapEditorProps) => {
           <h3 className="text-lg font-semibold">Transcript</h3>
         </div>
         {!isEmpty && (
-          <div className="flex items-center space-x-2">
-            <Button
-              variant={isEditable ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setIsEditable(!isEditable)}
-              className="flex items-center space-x-2"
-            >
-              <span>{isEditable ? "Lock" : "Edit"}</span>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={copyToClipboard}
-              className="flex items-center space-x-2"
-            >
-              <Copy className="h-4 w-4" />
-              <span>Copy</span>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <FileDown className="h-4 w-4" />
-                  <span>Export</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => exportAs("txt")}>
-                  as TXT
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handlePdfExport}>
-                  as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => exportAs("docx")}>
-                  as DOCX
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <ActionToolbar
+            showEditButton
+            isEditable={isEditable}
+            onToggleEdit={() => setIsEditable(!isEditable)}
+            onCopy={copyToClipboard}
+            onExport={handleExport}
+          />
         )}
       </div>
       {!isEmpty && isEditable && uniqueSpeakers.length > 0 && (

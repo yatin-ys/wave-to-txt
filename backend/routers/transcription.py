@@ -18,7 +18,10 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from botocore.exceptions import ClientError
 
-from backend.worker.tasks import process_transcription_task
+from backend.worker.tasks import (
+    process_transcription_task,
+    process_summarization_task,
+)
 from backend.core.redis_client import redis_client
 
 from backend.core.r2_client import r2_client, generate_presigned_url
@@ -37,6 +40,9 @@ class TaskStatus(BaseModel):
     utterances: list[Utterance] | None = None
     error: str | None = None
     audio_url: str | None = None
+    summary: str | None = None
+    summary_status: str | None = None
+    summary_error: str | None = None
 
 
 class TaskResponse(BaseModel):
@@ -104,6 +110,37 @@ async def create_transcription(
     return {"task_id": task_id}
 
 
+@router.post("/transcribe/{task_id}/summarize", status_code=status.HTTP_202_ACCEPTED)
+async def summarize_transcription(task_id: str):
+    if not redis_client:
+        raise HTTPException(
+            status_code=503, detail="Task queue service (Redis) not available."
+        )
+
+    task_json = redis_client.get(task_id)
+    if not task_json:
+        raise HTTPException(status_code=404, detail="Task not found.")
+
+    assert isinstance(task_json, str)
+    task_data = json.loads(task_json)
+
+    if task_data.get("status") != "completed":
+        raise HTTPException(status_code=400, detail="Transcription is not yet complete.")
+
+    if task_data.get("summary_status") in ["pending", "completed"]:
+        return JSONResponse(
+            content={"message": "Summarization already in progress or completed."},
+            status_code=202,
+        )
+
+    task_data["summary_status"] = "pending"
+    redis_client.set(task_id, json.dumps(task_data))
+
+    process_summarization_task.delay(task_id)
+
+    return {"message": "Summarization task started."}
+
+
 class AssemblyAIWebhookPayload(BaseModel):
     transcript_id: str
     status: str
@@ -150,6 +187,9 @@ async def assemblyai_webhook(
                     "utterances": transcript_data.get("utterances", []),
                     "error": None,
                     "audio_url": None,
+                    "summary": None,
+                    "summary_status": "not_started",
+                    "summary_error": None,
                 }
                 redis_client.set(task_id, json.dumps(final_data))
                 return JSONResponse(
@@ -170,6 +210,9 @@ async def assemblyai_webhook(
                 "utterances": transcript_data.get("utterances", []),
                 "error": None,
                 "audio_url": audio_url,
+                "summary": None,
+                "summary_status": "not_started",
+                "summary_error": None,
             }
             redis_client.set(task_id, json.dumps(final_data))
 
@@ -190,6 +233,7 @@ async def assemblyai_webhook(
             "error": payload.error
             or "AssemblyAI processing failed with an unknown error.",
             "audio_url": None,
+            "summary_status": "failed",
         }
         redis_client.set(task_id, json.dumps(final_data))
 
@@ -215,7 +259,10 @@ async def event_generator(task_id: str, request: Request):
             task_data = json.loads(task_json)
             task_data.pop("object_key", None)
             yield f"data: {json.dumps(task_data)}\n\n"
-            if task_data["status"] in ["completed", "failed"]:
+            if task_data["status"] == "failed" or task_data.get("summary_status") in [
+                "completed",
+                "failed",
+            ]:
                 break
         else:
             not_found_data = {"status": "failed", "error": "Task not found."}

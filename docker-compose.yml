@@ -23,6 +23,7 @@ services:
       - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
       - ASSEMBLYAI_WEBHOOK_SECRET=${ASSEMBLYAI_WEBHOOK_SECRET}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     restart: unless-stopped
 
   worker:
@@ -48,6 +49,7 @@ services:
       - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
       - ASSEMBLYAI_WEBHOOK_SECRET=${ASSEMBLYAI_WEBHOOK_SECRET}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     depends_on:
       - redis
     restart: unless-stopped

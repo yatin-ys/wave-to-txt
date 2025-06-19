@@ -10,6 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, RefreshCw, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SummaryView } from "@/components/custom/SummaryView";
+import { summarizeTranscription } from "@/api/client";
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -19,6 +22,10 @@ function App() {
     transcript,
     error,
     audioUrl,
+    summary,
+    summaryStatus,
+    summaryError,
+    taskId,
     startTranscription,
     resetTranscription,
   } = useTranscription();
@@ -28,6 +35,15 @@ function App() {
   const handleTranscribe = () => {
     if (selectedFile) {
       startTranscription(selectedFile, enableDiarization);
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!taskId) return;
+    try {
+      await summarizeTranscription(taskId);
+    } catch (err) {
+      console.error("Failed to start summarization", err);
     }
   };
 
@@ -196,7 +212,9 @@ function App() {
                         <Button
                           key={rate}
                           size="sm"
-                          variant={playbackRate === rate ? "default" : "outline"}
+                          variant={
+                            playbackRate === rate ? "default" : "outline"
+                          }
                           onClick={() => handlePlaybackRateChange(rate)}
                         >
                           {rate}x
@@ -214,7 +232,27 @@ function App() {
       {/* Transcript Panel */}
       <Card className="flex flex-col h-full min-h-0">
         <CardContent className="flex-1 p-6 min-h-0">
-          <TiptapEditor utterances={transcript} className="h-full" />
+          {isCompleted ? (
+            <Tabs defaultValue="transcription" className="h-full flex flex-col">
+              <TabsList className="mb-4">
+                <TabsTrigger value="transcription">Transcription</TabsTrigger>
+                <TabsTrigger value="summary">Summary</TabsTrigger>
+              </TabsList>
+              <TabsContent value="transcription" className="flex-1 min-h-0">
+                <TiptapEditor utterances={transcript} className="h-full" />
+              </TabsContent>
+              <TabsContent value="summary" className="flex-1 min-h-0">
+                <SummaryView
+                  summary={summary}
+                  summaryStatus={summaryStatus}
+                  summaryError={summaryError}
+                  onGenerateSummary={handleGenerateSummary}
+                />
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <TiptapEditor utterances={transcript} className="h-full" />
+          )}
         </CardContent>
       </Card>
     </MainLayout>

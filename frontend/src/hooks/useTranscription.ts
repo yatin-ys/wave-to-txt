@@ -16,11 +16,15 @@ interface StatusUpdate {
   utterances: Utterance[] | null;
   error: string | null;
   audio_url: string | null;
+  summary: string | null;
+  summary_status: string | null;
+  summary_error: string | null;
 }
 
 type TranscriptionStatus =
   | "idle"
   | "uploading"
+  | "pending"
   | "processing"
   | "completed"
   | "failed";
@@ -31,8 +35,15 @@ export const useTranscription = () => {
   const [transcript, setTranscript] = useState<Utterance[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryStatus, setSummaryStatus] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const statusRef = useRef(status);
+  statusRef.current = status;
+  const summaryStatusRef = useRef(summaryStatus);
+  summaryStatusRef.current = summaryStatus;
 
   const closeEventSource = useCallback(() => {
     if (eventSourceRef.current) {
@@ -42,7 +53,7 @@ export const useTranscription = () => {
   }, []);
 
   useEffect(() => {
-    if (taskId && status === "processing") {
+    if (taskId) {
       const newEventSource = new EventSource(
         `/api/transcribe/stream-status/${taskId}`
       );
@@ -51,6 +62,24 @@ export const useTranscription = () => {
       newEventSource.onmessage = (event) => {
         try {
           const statusUpdate: StatusUpdate = JSON.parse(event.data);
+
+          if (statusUpdate.status) {
+            statusRef.current = statusUpdate.status;
+          }
+          if (statusUpdate.summary_status) {
+            summaryStatusRef.current = statusUpdate.summary_status;
+          }
+
+          if (statusUpdate.summary_status) {
+            setSummaryStatus(statusUpdate.summary_status);
+          }
+          if (statusUpdate.summary) {
+            setSummary(statusUpdate.summary);
+          }
+          if (statusUpdate.summary_error) {
+            setSummaryError(statusUpdate.summary_error);
+          }
+
           switch (statusUpdate.status) {
             case "pending":
             case "processing":
@@ -58,13 +87,16 @@ export const useTranscription = () => {
               break;
             case "completed":
               setStatus("completed");
-              if (statusUpdate.utterances) {
+              if (
+                statusUpdate.utterances &&
+                JSON.stringify(statusUpdate.utterances) !==
+                  JSON.stringify(transcript)
+              ) {
                 setTranscript(statusUpdate.utterances);
               }
               if (statusUpdate.audio_url) {
                 setAudioUrl(statusUpdate.audio_url);
               }
-              closeEventSource();
               break;
             case "failed":
               setStatus("failed");
@@ -80,8 +112,15 @@ export const useTranscription = () => {
         }
       };
 
-      newEventSource.onerror = (event) => {
-        console.error("SSE error:", event);
+      newEventSource.onerror = () => {
+        if (
+          statusRef.current === "failed" ||
+          summaryStatusRef.current === "completed" ||
+          summaryStatusRef.current === "failed"
+        ) {
+          closeEventSource();
+          return;
+        }
         setStatus("failed");
         setError(
           "A connection error occurred while tracking transcription status."
@@ -93,7 +132,7 @@ export const useTranscription = () => {
         closeEventSource();
       };
     }
-  }, [taskId, status, closeEventSource]);
+  }, [taskId, closeEventSource, transcript]);
 
   const startTranscription = useCallback(
     async (file: File, enableDiarization: boolean) => {
@@ -103,6 +142,9 @@ export const useTranscription = () => {
         setError(null);
         setTranscript([]);
         setAudioUrl(null);
+        setSummary(null);
+        setSummaryStatus(null);
+        setSummaryError(null);
 
         const formData = new FormData();
         formData.append("audio_file", file);
@@ -147,6 +189,9 @@ export const useTranscription = () => {
     setTranscript([]);
     setError(null);
     setAudioUrl(null);
+    setSummary(null);
+    setSummaryStatus(null);
+    setSummaryError(null);
   }, [closeEventSource]);
 
   return {
@@ -155,6 +200,9 @@ export const useTranscription = () => {
     transcript,
     error,
     audioUrl,
+    summary,
+    summaryStatus,
+    summaryError,
     startTranscription,
     resetTranscription,
   };

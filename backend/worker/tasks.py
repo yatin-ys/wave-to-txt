@@ -5,6 +5,7 @@ from botocore.exceptions import ClientError
 from backend.worker.celery_app import celery_app
 from backend.core.redis_client import redis_client
 from backend.core.config import settings
+from backend.core.summarizer import generate_summary
 from groq import Groq
 
 from backend.core.r2_client import r2_client, generate_presigned_url
@@ -113,6 +114,9 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 "utterances": utterances,
                 "error": None,
                 "audio_url": audio_url,
+                "summary": None,
+                "summary_status": "not_started",
+                "summary_error": None,
             }
             redis_client.set(task_id, json.dumps(task_data))
 
@@ -126,5 +130,61 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
             "status": "failed",
             "utterances": None,
             "error": error_message,
+            "summary_status": "failed",
         }
         redis_client.set(task_id, json.dumps(task_data))
+
+
+@celery_app.task(name="process_summarization_task")
+def process_summarization_task(task_id: str):
+    """
+    Celery task to generate a summary from a completed transcription.
+    """
+    if not redis_client:
+        print(f"Summarization for task {task_id} failed: Redis client not available.")
+        return
+
+    try:
+        task_json = redis_client.get(task_id)
+        if not task_json:
+            raise Exception("Task data not found in Redis.")
+
+        assert isinstance(task_json, str)
+        task_data = json.loads(task_json)
+
+        if task_data.get("status") != "completed":
+            raise Exception("Transcription is not complete, cannot summarize.")
+
+        if not task_data.get("utterances"):
+            raise Exception("No utterances found to summarize.")
+
+        utterances = task_data.get("utterances", [])
+        is_diarized = any(u.get("speaker") for u in utterances)
+
+        transcript_parts = []
+        for u in utterances:
+            if u.get("speaker"):
+                transcript_parts.append(f"Speaker {u['speaker']}: {u['text']}")
+            else:
+                transcript_parts.append(u["text"])
+        full_transcript = "\\n".join(transcript_parts)
+
+        summary = generate_summary(full_transcript, is_diarized=is_diarized)
+
+        task_data["summary"] = summary
+        task_data["summary_status"] = "completed"
+
+        redis_client.set(task_id, json.dumps(task_data))
+        print(f"Successfully generated summary for task {task_id}")
+
+    except Exception as e:
+        error_message = f"Summarization failed: {str(e)}"
+        print(f"Task {task_id} summarization failed: {error_message}")
+
+        task_json = redis_client.get(task_id)
+        if task_json:
+            assert isinstance(task_json, str)
+            task_data = json.loads(task_json)
+            task_data["summary_status"] = "failed"
+            task_data["summary_error"] = error_message
+            redis_client.set(task_id, json.dumps(task_data))

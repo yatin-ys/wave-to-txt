@@ -21,6 +21,7 @@ class Settings:
     ASSEMBLYAI_API_KEY: str | None = os.getenv("ASSEMBLYAI_API_KEY")
     ASSEMBLYAI_WEBHOOK_SECRET: str | None = os.getenv("ASSEMBLYAI_WEBHOOK_SECRET")
     BACKEND_BASE_URL: str | None = os.getenv("BACKEND_BASE_URL")
+    GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
 
 
 settings = Settings()
