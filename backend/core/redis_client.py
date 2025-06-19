@@ -1,7 +1,9 @@
 import redis
 from .config import settings
-
+from .logging_config import get_logger
 from redis.exceptions import ConnectionError
+
+logger = get_logger("redis_client")
 
 try:
     redis_client: redis.Redis | None = redis.from_url(
@@ -9,8 +11,28 @@ try:
     )
 
     redis_client.ping()
-    print("Successfully connected to Redis.")
+    logger.info(
+        "Successfully connected to Redis",
+        extra={
+            "redis_url": (
+                settings.REDIS_URL.split("@")[-1]
+                if "@" in settings.REDIS_URL
+                else settings.REDIS_URL
+            )  # Hide credentials
+        },
+    )
 
 except ConnectionError as e:
-    print(f"Error connecting to Redis: {e}")
+    logger.error(
+        "Error connecting to Redis",
+        exc_info=True,
+        extra={
+            "error": str(e),
+            "redis_url": (
+                settings.REDIS_URL.split("@")[-1]
+                if "@" in settings.REDIS_URL
+                else settings.REDIS_URL
+            ),
+        },
+    )
     redis_client = None

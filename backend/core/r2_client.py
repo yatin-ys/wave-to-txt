@@ -1,6 +1,9 @@
 import boto3
 from botocore.exceptions import ClientError
 from .config import settings
+from .logging_config import get_logger
+
+logger = get_logger("r2_client")
 
 r2_client = None
 
@@ -20,16 +23,32 @@ if (
         )
 
         r2_client.head_bucket(Bucket=settings.R2_BUCKET_NAME)
-        print("Successfully connected to Cloudflare R2.")
+        logger.info(
+            "Successfully connected to Cloudflare R2",
+            extra={
+                "bucket_name": settings.R2_BUCKET_NAME,
+                "endpoint_url": settings.R2_ENDPOINT_URL,
+            },
+        )
 
     except ClientError as e:
-        print(f"Error connecting to Cloudflare R2: {e}")
+        logger.error(
+            "Error connecting to Cloudflare R2",
+            exc_info=True,
+            extra={"error": str(e), "bucket_name": settings.R2_BUCKET_NAME},
+        )
         r2_client = None
     except Exception as e:
-        print(f"An unexpected error occurred during R2 client initialization: {e}")
+        logger.error(
+            "Unexpected error during R2 client initialization",
+            exc_info=True,
+            extra={"error": str(e)},
+        )
         r2_client = None
 else:
-    print("Cloudflare R2 settings are not fully configured; R2 client not initialized.")
+    logger.warning(
+        "Cloudflare R2 settings are not fully configured; R2 client not initialized"
+    )
 
 
 def generate_presigned_url(object_key: str, expiration: int = 43200) -> str | None:
@@ -45,16 +64,35 @@ def generate_presigned_url(object_key: str, expiration: int = 43200) -> str | No
         The pre-signed URL as a string, or None if an error occurs.
     """
     if not r2_client:
-        print("R2 client not initialized. Cannot generate pre-signed URL.")
+        logger.error(
+            "R2 client not initialized. Cannot generate pre-signed URL",
+            extra={"object_key": object_key},
+        )
         return None
 
     try:
         url = r2_client.generate_presigned_url(
             "get_object",
-            Params={"Bucket": settings.R2_BUCKET_NAME, "Key": object_key},
+            Params={
+                "Bucket": settings.R2_BUCKET_NAME,
+                "Key": object_key,
+                "ResponseContentType": "audio/*",
+            },
             ExpiresIn=expiration,
+        )
+        logger.debug(
+            "Generated presigned URL",
+            extra={
+                "object_key": object_key,
+                "expiration_seconds": expiration,
+                "url_length": len(url),
+            },
         )
         return url
     except ClientError as e:
-        print(f"Error generating pre-signed URL: {e}")
+        logger.error(
+            "Error generating pre-signed URL",
+            exc_info=True,
+            extra={"object_key": object_key, "error": str(e)},
+        )
         return None

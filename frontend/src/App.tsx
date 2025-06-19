@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/layouts/MainLayout";
 import { FileUploader } from "@/components/custom/FileUploader";
 import { TiptapEditor } from "@/components/custom/TiptapEditor";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, RefreshCw, PlayCircle } from "lucide-react";
+import { Loader2, RefreshCw, PlayCircle, ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SummaryView } from "@/components/custom/SummaryView";
 import { summarizeTranscription } from "@/api/client";
@@ -28,6 +28,14 @@ function App() {
   } = useTranscription();
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
+
+  // Force audio to load when URL changes
+  useEffect(() => {
+    if (audioUrl && audioRef.current) {
+      console.log("Loading audio with URL:", audioUrl);
+      audioRef.current.load();
+    }
+  }, [audioUrl]);
 
   const handleTranscribe = () => {
     if (selectedFile) {
@@ -146,29 +154,57 @@ function App() {
                       ref={audioRef}
                       src={audioUrl}
                       controls
+                      preload="metadata"
                       className="w-full"
+                      key={audioUrl} // Force re-render when URL changes
+                      onLoadedMetadata={() => {
+                        console.log("Audio metadata loaded");
+                      }}
+                      onCanPlay={() => {
+                        console.log("Audio can play");
+                      }}
+                      onError={(e) => {
+                        console.error("Audio loading error:", e);
+                        const audio = e.currentTarget;
+                        console.error("Audio error details:", {
+                          error: audio.error,
+                          networkState: audio.networkState,
+                          readyState: audio.readyState,
+                          src: audio.src
+                        });
+                      }}
                       onRateChange={() => {
                         if (audioRef.current) {
                           setPlaybackRate(audioRef.current.playbackRate);
                         }
                       }}
                     />
-                    <div className="flex items-center space-x-2">
-                      <Label className="text-sm font-medium">
-                        Playback Speed:
-                      </Label>
-                      {[0.5, 1, 1.5, 2].map((rate) => (
-                        <Button
-                          key={rate}
-                          size="sm"
-                          variant={
-                            playbackRate === rate ? "default" : "outline"
-                          }
-                          onClick={() => handlePlaybackRateChange(rate)}
-                        >
-                          {rate}x
-                        </Button>
-                      ))}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Label className="text-sm font-medium">
+                          Playback Speed:
+                        </Label>
+                        {[0.5, 1, 1.5, 2].map((rate) => (
+                          <Button
+                            key={rate}
+                            size="sm"
+                            variant={
+                              playbackRate === rate ? "default" : "outline"
+                            }
+                            onClick={() => handlePlaybackRateChange(rate)}
+                          >
+                            {rate}x
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(audioUrl, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-1" />
+                        Open Audio
+                      </Button>
                     </div>
                   </div>
                 )}

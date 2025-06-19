@@ -10,6 +10,8 @@ services:
       context: ./backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/logs:/app/logs
     depends_on:
       - redis
     environment:
@@ -39,6 +41,8 @@ services:
         "info",
         "--concurrency=4",
       ]
+    volumes:
+      - ./backend/logs:/app/logs
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - REDIS_URL=redis://redis:6379/0

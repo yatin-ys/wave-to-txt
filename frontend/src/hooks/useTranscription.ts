@@ -92,6 +92,7 @@ export const useTranscription = () => {
                 setTranscript(statusUpdate.utterances);
               }
               if (statusUpdate.audio_url) {
+                console.log("Setting audio URL:", statusUpdate.audio_url);
                 setAudioUrl(statusUpdate.audio_url);
               }
               break;

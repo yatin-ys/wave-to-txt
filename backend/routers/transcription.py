@@ -26,6 +26,9 @@ from backend.core.redis_client import redis_client
 
 from backend.core.r2_client import r2_client, generate_presigned_url
 from backend.core.config import settings
+from backend.core.logging_config import get_logger
+
+logger = get_logger("transcription_router")
 
 router = APIRouter()
 
@@ -156,19 +159,34 @@ async def assemblyai_webhook(
     x_webhook_secret: str = Header(None, alias="X-Webhook-Secret"),
 ):
     if not redis_client:
-        print("Webhook received but Redis is not available.")
+        logger.error(
+            "Webhook received but Redis is not available",
+            extra={"task_id": task_id, "payload_status": payload.status},
+        )
         return JSONResponse(
             content={"message": "Acknowledged, but internal error occurred."},
             status_code=200,
         )
 
-    if settings.ASSEMBLYAI_WEBHOOK_SECRET:
-        if (
-            not x_webhook_secret
-            or x_webhook_secret != settings.ASSEMBLYAI_WEBHOOK_SECRET
-        ):
-            print(f"Invalid webhook secret for task_id: {task_id}")
-            raise HTTPException(status_code=403, detail="Invalid webhook secret.")
+    # Webhook secret validation is now mandatory - no bypassing allowed
+    if not settings.ASSEMBLYAI_WEBHOOK_SECRET:
+        logger.error(
+            "Webhook secret not configured on server", extra={"task_id": task_id}
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook authentication is not properly configured on the server.",
+        )
+
+    if not x_webhook_secret:
+        logger.warning("Missing webhook secret header", extra={"task_id": task_id})
+        raise HTTPException(
+            status_code=401, detail="Missing webhook authentication header."
+        )
+
+    if x_webhook_secret != settings.ASSEMBLYAI_WEBHOOK_SECRET:
+        logger.warning("Invalid webhook secret", extra={"task_id": task_id})
+        raise HTTPException(status_code=403, detail="Invalid webhook authentication.")
 
     if payload.status == "completed":
         try:
@@ -183,7 +201,10 @@ async def assemblyai_webhook(
 
             task_json = redis_client.get(task_id)
             if not task_json:
-                print(f"Task {task_id} not found in Redis for webhook completion.")
+                logger.warning(
+                    "Task not found in Redis for webhook completion",
+                    extra={"task_id": task_id, "transcript_id": payload.transcript_id},
+                )
                 final_data = {
                     "status": "completed",
                     "utterances": transcript_data.get("utterances", []),
@@ -219,8 +240,14 @@ async def assemblyai_webhook(
             redis_client.set(task_id, json.dumps(final_data))
 
         except requests.exceptions.RequestException as e:
-            print(
-                f"Failed to fetch transcript {payload.transcript_id} from AssemblyAI: {e}"
+            logger.error(
+                "Failed to fetch transcript from AssemblyAI",
+                exc_info=True,
+                extra={
+                    "task_id": task_id,
+                    "transcript_id": payload.transcript_id,
+                    "error": str(e),
+                },
             )
             error_data = {
                 "status": "failed",
@@ -252,7 +279,7 @@ async def event_generator(task_id: str, request: Request):
 
     while True:
         if await request.is_disconnected():
-            print(f"Client disconnected for task_id: {task_id}")
+            logger.debug("Client disconnected from stream", extra={"task_id": task_id})
             break
 
         task_json = redis_client.get(task_id)

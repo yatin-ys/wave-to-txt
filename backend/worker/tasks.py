@@ -6,16 +6,24 @@ from backend.worker.celery_app import celery_app
 from backend.core.redis_client import redis_client
 from backend.core.config import settings
 from backend.core.summarizer import generate_summary
+from backend.core.logging_config import get_logger
 from groq import Groq
 
 from backend.core.r2_client import r2_client, generate_presigned_url
+
+logger = get_logger("tasks")
 
 try:
     if not settings.GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not found in environment variables.")
     groq_client = Groq(api_key=settings.GROQ_API_KEY)
+    logger.info("Groq client initialized successfully")
 except Exception as e:
-    print(f"Error initializing Groq client in worker: {e}")
+    logger.error(
+        "Error initializing Groq client in worker",
+        exc_info=True,
+        extra={"error": str(e)},
+    )
     groq_client = None
 
 
@@ -27,12 +35,17 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
     - If diarization is enabled, it uploads the file to AssemblyAI and uses a webhook.
     """
     if not redis_client:
-        print(f"Task {task_id} failed: Redis client not available.")
+        logger.error(
+            "Task failed: Redis client not available", extra={"task_id": task_id}
+        )
         return
 
     if not r2_client or not settings.R2_BUCKET_NAME:
         error_msg = "Object storage service (R2) not available in worker."
-        print(f"Task {task_id} failed: {error_msg}")
+        logger.error(
+            "Task failed: R2 not available",
+            extra={"task_id": task_id, "error": error_msg},
+        )
         task_data = {"status": "failed", "error": error_msg}
         redis_client.set(task_id, json.dumps(task_data))
         return
@@ -92,7 +105,14 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 headers=transcript_headers,
             )
             response.raise_for_status()
-            print(f"Task {task_id} dispatched to AssemblyAI.")
+            logger.info(
+                "Task dispatched to AssemblyAI for diarization",
+                extra={
+                    "task_id": task_id,
+                    "object_key": object_key,
+                    "transcript_id": response.json().get("id"),
+                },
+            )
 
         else:
             if not groq_client:
@@ -119,13 +139,31 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 "summary_error": None,
             }
             redis_client.set(task_id, json.dumps(task_data))
+            logger.info(
+                "Groq transcription completed successfully",
+                extra={
+                    "task_id": task_id,
+                    "object_key": object_key,
+                    "transcript_length": len(transcription.text),
+                    "audio_url_available": bool(audio_url),
+                },
+            )
 
     except Exception as e:
         error_message = f"Processing failed: {str(e)}"
+        extra_data = {
+            "task_id": task_id,
+            "object_key": object_key,
+            "enable_diarization": enable_diarization,
+            "error": str(e),
+        }
+
         if isinstance(e, requests.exceptions.HTTPError):
             error_message += f" - Response: {e.response.text}"
+            extra_data["http_status"] = e.response.status_code
+            extra_data["response_text"] = e.response.text
 
-        print(f"Task {task_id} failed: {error_message}")
+        logger.error("Transcription task failed", exc_info=True, extra=extra_data)
         task_data = {
             "status": "failed",
             "utterances": None,
@@ -141,7 +179,10 @@ def process_summarization_task(task_id: str):
     Celery task to generate a summary from a completed transcription.
     """
     if not redis_client:
-        print(f"Summarization for task {task_id} failed: Redis client not available.")
+        logger.error(
+            "Summarization failed: Redis client not available",
+            extra={"task_id": task_id},
+        )
         return
 
     try:
@@ -175,11 +216,23 @@ def process_summarization_task(task_id: str):
         task_data["summary_status"] = "completed"
 
         redis_client.set(task_id, json.dumps(task_data))
-        print(f"Successfully generated summary for task {task_id}")
+        logger.info(
+            "Successfully generated summary",
+            extra={
+                "task_id": task_id,
+                "summary_length": len(summary),
+                "is_diarized": is_diarized,
+                "utterance_count": len(utterances),
+            },
+        )
 
     except Exception as e:
         error_message = f"Summarization failed: {str(e)}"
-        print(f"Task {task_id} summarization failed: {error_message}")
+        logger.error(
+            "Summarization task failed",
+            exc_info=True,
+            extra={"task_id": task_id, "error": str(e)},
+        )
 
         task_json = redis_client.get(task_id)
         if task_json:

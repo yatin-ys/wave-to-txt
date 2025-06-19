@@ -2,6 +2,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.schema.output_parser import StrOutputParser
 from backend.core.config import settings
+from backend.core.logging_config import get_logger
+
+logger = get_logger("summarizer")
 
 
 def generate_summary(text_to_summarize: str, is_diarized: bool = False) -> str:
@@ -33,5 +36,23 @@ def generate_summary(text_to_summarize: str, is_diarized: bool = False) -> str:
 
     chain = prompt | llm | StrOutputParser()
 
+    logger.info(
+        "Starting summarization",
+        extra={
+            "text_length": len(text_to_summarize),
+            "is_diarized": is_diarized,
+            "model": "gemini-2.5-flash",
+        },
+    )
+
     summary = chain.invoke({"text": text_to_summarize})
+
+    logger.info(
+        "Summarization completed",
+        extra={
+            "summary_length": len(summary),
+            "compression_ratio": len(summary) / len(text_to_summarize),
+        },
+    )
+
     return summary
