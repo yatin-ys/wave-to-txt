@@ -6,9 +6,8 @@ This repository contains a full-stack application with a Python backend powered 
 
 Before you begin, ensure you have the following installed:
 
-- **Python** (v3.11 or newer)
-- **uv** (The Python package manager used for this project. [Installation Guide](https://github.com/astral-sh/uv))
-- **Node.js** (v18 or newer) and **npm**
+- **Docker** (v20.10 or newer)
+- **Docker Compose** (v2.0 or newer)
 
 ---
 
@@ -27,15 +26,13 @@ cd wave-to-txt
 
 **Important**: Proper environment configuration is required for the application to work correctly.
 
-#### Backend Configuration
-
-1. Copy the environment template:
+1. Copy the environment template to the root directory:
 
    ```bash
-   cp env.template backend/.env
+   cp env.template .env
    ```
 
-2. Edit `backend/.env` and fill in your API keys and configuration:
+2. Edit `.env` and fill in your API keys and configuration:
 
    ```bash
    # Required: At least one transcription service
@@ -55,83 +52,44 @@ cd wave-to-txt
    # See env.template for all available options
    ```
 
-3. **Validate your configuration**:
-   ```bash
-   cd backend
-   python validate_env.py
-   ```
-
-#### Frontend Configuration
-
-1. Copy the environment template:
-
-   ```bash
-   cp frontend/env.template frontend/.env
-   ```
-
-2. Edit `frontend/.env`:
-   ```bash
-   VITE_API_URL=http://localhost:8000/api
-   ```
-
-#### 🔍 Environment Validation
-
-- Backend validation runs automatically on startup
-- Frontend validation runs during build/dev
-- Use `python backend/validate_env.py` to test backend config
-- Use `npm run build` to test frontend config
-
-### 3. Configure the Backend
-
-The backend uses `uv` for environment and package management.
-
-```bash
-# Navigate to the backend directory
-cd backend
-
-# Create and activate a virtual environment
-uv venv
-
-# Install dependencies from pyproject.toml
-uv sync
-```
-
-### 4. Configure the Frontend
-
-The frontend uses `npm` for package management.
-
-```bash
-# Navigate to the frontend directory from the root
-cd frontend
-
-# Install dependencies
-npm install
-```
-
 ## Running the Application
 
-To run the application, you will need two separate terminal windows: one for the backend and one for the frontend.
+With Docker Compose, you can run the entire application stack with a single command.
 
-### Terminal 1: Run the Backend API
-
-```bash
-# Navigate to the backend directory
-cd backend
-
-# Start the development server with hot-reloading
-fastapi dev main.py
-```
-
-The backend API will be running at http://localhost:8000. You can test it by visiting http://localhost:8000/api/healthcheck in your browser.
-
-### Terminal 2: Run the Frontend App
+### Start the Application
 
 ```bash
-# Navigate to the frontend directory
-cd frontend
-
-# Start the Vite development server
-npm run dev
+# Build and start all services
+docker-compose up --build
 ```
 
-The React application will be available at http://localhost:5173.
+This will start:
+- **Backend API** on http://localhost:8000
+- **Frontend Application** on http://localhost:3000
+- **Redis** for task queuing
+- **Worker** for background processing
+
+### Useful Docker Commands
+
+```bash
+# Run in detached mode (background)
+docker-compose up -d
+
+# Stop all services
+docker-compose down
+
+# View logs for all services
+docker-compose logs
+
+# View logs for a specific service
+docker-compose logs backend
+
+# Rebuild and restart services
+docker-compose up --build
+```
+
+### Accessing the Application
+
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Health Check**: http://localhost:8000/api/healthcheck
