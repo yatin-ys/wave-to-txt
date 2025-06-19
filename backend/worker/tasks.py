@@ -139,6 +139,12 @@ def process_transcription_task(object_key: str, task_id: str, enable_diarization
                 "summary_error": None,
             }
             redis_client.set(task_id, json.dumps(task_data))
+
+            # Trigger vector store initialization for RAG functionality
+            from backend.worker.rag_tasks import initialize_vector_store_task
+
+            initialize_vector_store_task.delay(task_id)
+
             logger.info(
                 "Groq transcription completed successfully",
                 extra={

@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.core.config import settings
 from backend.core.logging_config import get_logger
-from backend.routers import transcription
+from backend.routers import transcription, chat
 
 logger = get_logger("main")
 
@@ -25,6 +25,9 @@ app.add_middleware(
 # Include the transcription router
 # All routes defined in that file will be added under the /api prefix
 app.include_router(transcription.router, prefix="/api")
+
+# Include the chat router for RAG functionality
+app.include_router(chat.router, prefix="/api")
 
 # Log application startup
 logger.info(

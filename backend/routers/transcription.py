@@ -215,6 +215,12 @@ async def assemblyai_webhook(
                     "summary_error": None,
                 }
                 redis_client.set(task_id, json.dumps(final_data))
+
+                # Trigger vector store initialization for RAG functionality
+                from backend.worker.rag_tasks import initialize_vector_store_task
+
+                initialize_vector_store_task.delay(task_id)
+
                 return JSONResponse(
                     content={"message": "Webhook received, but task data lost."},
                     status_code=200,
@@ -238,6 +244,11 @@ async def assemblyai_webhook(
                 "summary_error": None,
             }
             redis_client.set(task_id, json.dumps(final_data))
+
+            # Trigger vector store initialization for RAG functionality
+            from backend.worker.rag_tasks import initialize_vector_store_task
+
+            initialize_vector_store_task.delay(task_id)
 
         except requests.exceptions.RequestException as e:
             logger.error(

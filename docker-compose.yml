@@ -12,6 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/logs:/app/logs
+      - faiss_data:/app/chroma_db
     depends_on:
       - redis
     environment:
@@ -22,27 +23,24 @@ services:
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
       - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
       - ASSEMBLYAI_WEBHOOK_SECRET=${ASSEMBLYAI_WEBHOOK_SECRET}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-    restart: unless-stopped
+      - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
+      - RAG_TOP_K_RESULTS=${RAG_TOP_K_RESULTS:-5}
+      - CHROMA_DB_PATH=/app/chroma_db
 
   worker:
     build:
       context: ./backend
-    command:
-      [
-        "celery",
-        "-A",
-        "backend.worker.celery_app",
-        "worker",
-        "-l",
-        "info",
-        "--concurrency=4",
-      ]
     volumes:
       - ./backend/logs:/app/logs
+      - faiss_data:/app/chroma_db
+    depends_on:
+      - redis
+      - backend
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - REDIS_URL=redis://redis:6379/0
@@ -50,24 +48,24 @@ services:
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
       - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - ASSEMBLYAI_API_KEY=${ASSEMBLYAI_API_KEY}
       - ASSEMBLYAI_WEBHOOK_SECRET=${ASSEMBLYAI_WEBHOOK_SECRET}
       - BACKEND_BASE_URL=${BACKEND_BASE_URL}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-    depends_on:
-      - redis
-    restart: unless-stopped
+      - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
+      - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
+      - RAG_TOP_K_RESULTS=${RAG_TOP_K_RESULTS:-5}
+      - CHROMA_DB_PATH=/app/chroma_db
+    command: celery -A backend.worker.celery_app worker --loglevel=info
 
   frontend:
     build:
       context: ./frontend
-      args:
-        - VITE_API_URL=/api
     ports:
-      - "5173:80"
+      - "3000:80"
     depends_on:
       - backend
-    restart: unless-stopped
 
 volumes:
   redis_data:
+  faiss_data:

@@ -10,11 +10,29 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2, RefreshCw, PlayCircle, ExternalLink } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SummaryView } from "@/components/custom/SummaryView";
+import { ChatInterface } from "@/components/custom/ChatInterface";
 import { summarizeTranscription } from "@/api/client";
+
+// Define the Message interface at the App level
+interface Message {
+  id: string;
+  type: "user" | "assistant";
+  content: string;
+  timestamp: Date;
+  sources?: Array<{
+    type: string;
+    content_preview: string;
+    speaker?: string;
+    file_name?: string;
+    page_number?: number;
+  }>;
+}
 
 function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [enableDiarization, setEnableDiarization] = useState(false);
+  // Chat messages state to persist across tab switches
+  const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const {
     status,
     transcript,
@@ -57,6 +75,8 @@ function App() {
     setSelectedFile(null);
     setEnableDiarization(false);
     setPlaybackRate(1);
+    // Clear chat messages when starting a new transcription
+    setChatMessages([]);
     if (audioRef.current) {
       audioRef.current.playbackRate = 1;
     }
@@ -170,7 +190,7 @@ function App() {
                           error: audio.error,
                           networkState: audio.networkState,
                           readyState: audio.readyState,
-                          src: audio.src
+                          src: audio.src,
                         });
                       }}
                       onRateChange={() => {
@@ -200,7 +220,7 @@ function App() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(audioUrl, '_blank')}
+                        onClick={() => window.open(audioUrl, "_blank")}
                       >
                         <ExternalLink className="h-4 w-4 mr-1" />
                         Open Audio
@@ -222,6 +242,7 @@ function App() {
               <TabsList className="mb-4">
                 <TabsTrigger value="transcription">Transcription</TabsTrigger>
                 <TabsTrigger value="summary">Summary</TabsTrigger>
+                <TabsTrigger value="chat">Chat</TabsTrigger>
               </TabsList>
               <TabsContent value="transcription" className="flex-1 min-h-0">
                 <TiptapEditor utterances={transcript} className="h-full" />
@@ -232,6 +253,14 @@ function App() {
                   summaryStatus={summaryStatus}
                   summaryError={summaryError}
                   onGenerateSummary={handleGenerateSummary}
+                />
+              </TabsContent>
+              <TabsContent value="chat" className="flex-1 min-h-0">
+                <ChatInterface
+                  taskId={taskId}
+                  isTranscriptCompleted={isCompleted}
+                  messages={chatMessages}
+                  onMessagesChange={setChatMessages}
                 />
               </TabsContent>
             </Tabs>

@@ -8,6 +8,9 @@ import { saveAs } from "file-saver";
 import { Packer, Document as DocxDocument, Paragraph } from "docx";
 import { pdf } from "@react-pdf/renderer";
 import { SummaryPDF } from "./SummaryPDF";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface SummaryViewProps {
   summary: string | null;
@@ -106,7 +109,72 @@ export const SummaryView = ({
           <ActionToolbar onCopy={handleCopy} onExport={handleExport} />
         </div>
         <ScrollArea className="flex-1 rounded-md border p-4 bg-muted/20">
-          <p className="text-base whitespace-pre-wrap">{summary}</p>
+          <div className="prose prose-base max-w-none dark:prose-invert">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, remarkBreaks]}
+              components={{
+                // Custom styling for markdown elements
+                p: ({ children }) => (
+                  <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>
+                ),
+                ul: ({ children }) => (
+                  <ul className="mb-3 ml-6 list-disc space-y-1">{children}</ul>
+                ),
+                ol: ({ children }) => (
+                  <ol className="mb-3 ml-6 list-decimal space-y-1">
+                    {children}
+                  </ol>
+                ),
+                li: ({ children }) => (
+                  <li className="leading-relaxed">{children}</li>
+                ),
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-foreground">
+                    {children}
+                  </strong>
+                ),
+                em: ({ children }) => <em className="italic">{children}</em>,
+                h1: ({ children }) => (
+                  <h1 className="text-2xl font-bold mb-3 mt-4 first:mt-0">
+                    {children}
+                  </h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-xl font-semibold mb-3 mt-4 first:mt-0">
+                    {children}
+                  </h2>
+                ),
+                h3: ({ children }) => (
+                  <h3 className="text-lg font-semibold mb-2 mt-3 first:mt-0">
+                    {children}
+                  </h3>
+                ),
+                h4: ({ children }) => (
+                  <h4 className="text-base font-semibold mb-2 mt-3 first:mt-0">
+                    {children}
+                  </h4>
+                ),
+                blockquote: ({ children }) => (
+                  <blockquote className="border-l-4 border-primary/30 pl-4 my-3 italic text-muted-foreground">
+                    {children}
+                  </blockquote>
+                ),
+                code: ({ children }) => (
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+                    {children}
+                  </code>
+                ),
+                pre: ({ children }) => (
+                  <pre className="bg-muted p-3 rounded overflow-x-auto text-sm font-mono my-3">
+                    {children}
+                  </pre>
+                ),
+                hr: () => <hr className="border-border my-4" />,
+              }}
+            >
+              {summary}
+            </ReactMarkdown>
+          </div>
         </ScrollArea>
       </div>
     );
