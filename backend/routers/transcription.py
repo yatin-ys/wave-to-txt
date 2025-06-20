@@ -3,6 +3,7 @@ import json
 import asyncio
 import requests
 from pathlib import Path
+import mimetypes
 from fastapi import (
     APIRouter,
     File,
@@ -86,10 +87,18 @@ async def create_transcription(
     object_key = f"{task_id}{file_extension}"
 
     try:
+        # Guess content type, defaulting to a generic stream if unknown or no filename
+        content_type = "application/octet-stream"
+        if audio_file.filename:
+            guessed_type, _ = mimetypes.guess_type(audio_file.filename)
+            if guessed_type:
+                content_type = guessed_type
+
         r2_client.upload_fileobj(
             Fileobj=audio_file.file,
             Bucket=settings.R2_BUCKET_NAME,
             Key=object_key,
+            ExtraArgs={"ContentType": content_type},
         )
     except ClientError as e:
         raise HTTPException(

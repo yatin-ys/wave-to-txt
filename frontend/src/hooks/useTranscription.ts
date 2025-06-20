@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import apiClient from "@/api/client";
-import axios from "axios";
+import apiClient from "@/api/apiClient";
 import { toast } from "sonner";
+import axios from "axios";
 
 interface Utterance {
   speaker: string | null;

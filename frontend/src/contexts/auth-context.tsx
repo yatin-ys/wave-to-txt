@@ -17,6 +17,7 @@ interface AuthContextType extends AuthState {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<boolean>;
 }
 
 const initialState: AuthState = {
@@ -260,6 +261,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const updatePassword = async (password: string) => {
+    try {
+      setState((prev) => ({ ...prev, loading: true }));
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) {
+        handleAuthError(error);
+        return false;
+      }
+      toast.success("Password updated successfully! You can now sign in.");
+      return true;
+    } catch {
+      // Error already handled in handleAuthError
+      return false;
+    } finally {
+      setState((prev) => ({ ...prev, loading: false }));
+    }
+  };
+
   const value: AuthContextType = {
     ...state,
     signUp,
@@ -267,6 +286,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInWithGoogle,
     signOut,
     resetPassword,
+    updatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

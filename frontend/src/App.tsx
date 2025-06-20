@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { MainLayout } from "@/layouts/MainLayout";
 import { FileUploader } from "@/components/custom/FileUploader";
 import { TiptapEditor } from "@/components/custom/TiptapEditor";
 import { AuthDialog } from "@/components/custom/AuthDialog";
 import { HistoryPage } from "@/components/custom/HistoryPage";
 import { TranscriptionDetailsPage } from "@/components/custom/TranscriptionDetailsPage";
+import { ResetPasswordPage } from "@/components/custom/ResetPasswordPage";
 import { useTranscription } from "@/hooks/useTranscription";
 import { useAuth } from "@/contexts/auth-context";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, RefreshCw, PlayCircle, ExternalLink, Check, X } from "lucide-react";
+import {
+  Loader2,
+  RefreshCw,
+  PlayCircle,
+  ExternalLink,
+  Check,
+  X,
+} from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SummaryView } from "@/components/custom/SummaryView";
 import { ChatInterface } from "@/components/custom/ChatInterface";
-import { summarizeTranscription } from "@/api/client";
+import { summarizeTranscription } from "@/api/transcription";
 import {
   saveTranscription,
   saveSummary,
@@ -41,27 +49,27 @@ interface Message {
 }
 
 // App page states
-type AppPage = "transcribe" | "history" | "details";
+type AppPage = "transcribe" | "history" | "details" | "reset-password";
 
 // Cloud Save Status Component
-const CloudSaveStatus = ({ 
-  status, 
-  label 
-}: { 
-  status: 'idle' | 'saving' | 'success' | 'error'; 
+const CloudSaveStatus = ({
+  status,
+  label,
+}: {
+  status: "idle" | "saving" | "success" | "error";
   label: string;
 }) => {
-  if (status === 'idle') return null;
-  
+  if (status === "idle") return null;
+
   return (
     <div className="flex items-center space-x-2 text-sm">
-      {status === 'saving' && (
+      {status === "saving" && (
         <>
           <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
           <span className="text-blue-500">Saving {label} to cloud...</span>
         </>
       )}
-      {status === 'success' && (
+      {status === "success" && (
         <>
           <div className="flex items-center justify-center h-4 w-4 bg-green-500 rounded-full">
             <Check className="h-3 w-3 text-white" />
@@ -69,7 +77,7 @@ const CloudSaveStatus = ({
           <span className="text-green-600">{label} saved to cloud</span>
         </>
       )}
-      {status === 'error' && (
+      {status === "error" && (
         <>
           <div className="flex items-center justify-center h-4 w-4 bg-red-500 rounded-full">
             <X className="h-3 w-3 text-white" />
@@ -96,13 +104,13 @@ function App() {
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   // Cloud save status tracking
   const [saveStatus, setSaveStatus] = useState<{
-    transcription: 'idle' | 'saving' | 'success' | 'error';
-    summary: 'idle' | 'saving' | 'success' | 'error';
-    chat: 'idle' | 'saving' | 'success' | 'error';
+    transcription: "idle" | "saving" | "success" | "error";
+    summary: "idle" | "saving" | "success" | "error";
+    chat: "idle" | "saving" | "success" | "error";
   }>({
-    transcription: 'idle',
-    summary: 'idle',
-    chat: 'idle',
+    transcription: "idle",
+    summary: "idle",
+    chat: "idle",
   });
   const {
     status,
@@ -118,6 +126,42 @@ function App() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
 
+  // This function will reset the application state to its initial state
+  const resetAppState = useCallback(() => {
+    setCurrentPage("transcribe");
+    setSelectedTranscriptionId(null);
+    setSelectedFile(null);
+    setEnableDiarization(false);
+    setChatSessionId(null);
+    setChatMessages([]);
+    setSaveStatus({
+      transcription: "idle",
+      summary: "idle",
+      chat: "idle",
+    });
+    resetTranscription();
+    setPlaybackRate(1);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = 1;
+    }
+  }, [resetTranscription]);
+
+  // Effect to reset app state when user logs out
+  useEffect(() => {
+    // We only want to reset if the user object *was* present and now is not.
+    if (!user && initialized) {
+      resetAppState();
+    }
+  }, [user, initialized, resetAppState]);
+
+  // Effect to handle routing from URL on initial load
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/reset-password') {
+      setCurrentPage('reset-password');
+    }
+  }, []);
+
   // Force audio to load when URL changes
   useEffect(() => {
     if (audioUrl && audioRef.current) {
@@ -126,7 +170,7 @@ function App() {
     }
   }, [audioUrl]);
 
-    // Save transcription to history when completed
+  // Save transcription to history when completed
   useEffect(() => {
     const saveTranscriptionToHistory = async () => {
       if (
@@ -137,8 +181,8 @@ function App() {
         taskId &&
         user
       ) {
-        setSaveStatus(prev => ({ ...prev, transcription: 'saving' }));
-        
+        setSaveStatus((prev) => ({ ...prev, transcription: "saving" }));
+
         try {
           // Generate a meaningful title from filename with better formatting
           const generateTitle = (filename: string): string => {
@@ -148,7 +192,7 @@ function App() {
               .replace(/([a-z])([A-Z])/g, "$1 $2") // Add space before capital letters (camelCase)
               .replace(/\s+/g, " ") // Replace multiple spaces with single space
               .trim(); // Remove leading/trailing spaces
-            
+
             // Handle common generic names
             if (
               title.toLowerCase().includes("videoplayback") ||
@@ -179,7 +223,7 @@ function App() {
                 )
                 .join(" ");
             }
-            
+
             return title;
           };
 
@@ -200,20 +244,20 @@ function App() {
             })),
           });
 
-          setSaveStatus(prev => ({ ...prev, transcription: 'success' }));
+          setSaveStatus((prev) => ({ ...prev, transcription: "success" }));
           console.log("Transcription saved to history successfully");
-          
+
           // Reset to idle after 3 seconds
           setTimeout(() => {
-            setSaveStatus(prev => ({ ...prev, transcription: 'idle' }));
+            setSaveStatus((prev) => ({ ...prev, transcription: "idle" }));
           }, 3000);
         } catch (error) {
-          setSaveStatus(prev => ({ ...prev, transcription: 'error' }));
+          setSaveStatus((prev) => ({ ...prev, transcription: "error" }));
           console.error("Failed to save transcription to history:", error);
-          
+
           // Reset to idle after 5 seconds for errors
           setTimeout(() => {
-            setSaveStatus(prev => ({ ...prev, transcription: 'idle' }));
+            setSaveStatus((prev) => ({ ...prev, transcription: "idle" }));
           }, 5000);
         }
       }
@@ -226,8 +270,8 @@ function App() {
   useEffect(() => {
     const saveSummaryToHistory = async () => {
       if (summaryStatus === "completed" && summary && taskId && user) {
-        setSaveStatus(prev => ({ ...prev, summary: 'saving' }));
-        
+        setSaveStatus((prev) => ({ ...prev, summary: "saving" }));
+
         try {
           await saveSummary({
             transcription_id: taskId,
@@ -235,20 +279,20 @@ function App() {
             summary_type: "ai_generated",
           });
 
-          setSaveStatus(prev => ({ ...prev, summary: 'success' }));
+          setSaveStatus((prev) => ({ ...prev, summary: "success" }));
           console.log("Summary saved to history successfully");
-          
+
           // Reset to idle after 3 seconds
           setTimeout(() => {
-            setSaveStatus(prev => ({ ...prev, summary: 'idle' }));
+            setSaveStatus((prev) => ({ ...prev, summary: "idle" }));
           }, 3000);
         } catch (error) {
-          setSaveStatus(prev => ({ ...prev, summary: 'error' }));
+          setSaveStatus((prev) => ({ ...prev, summary: "error" }));
           console.error("Failed to save summary to history:", error);
-          
+
           // Reset to idle after 5 seconds for errors
           setTimeout(() => {
-            setSaveStatus(prev => ({ ...prev, summary: 'idle' }));
+            setSaveStatus((prev) => ({ ...prev, summary: "idle" }));
           }, 5000);
         }
       }
@@ -268,7 +312,7 @@ function App() {
 
   const handleTranscribe = () => {
     if (handleAuthRequired()) return;
-    
+
     if (selectedFile) {
       startTranscription(selectedFile, enableDiarization);
     }
@@ -293,9 +337,9 @@ function App() {
     setChatMessages([]);
     // Reset save status
     setSaveStatus({
-      transcription: 'idle',
-      summary: 'idle',
-      chat: 'idle',
+      transcription: "idle",
+      summary: "idle",
+      chat: "idle",
     });
     if (audioRef.current) {
       audioRef.current.playbackRate = 1;
@@ -313,8 +357,8 @@ function App() {
   const handleChatMessage = async (message: Message) => {
     if (!taskId || !user) return;
 
-    setSaveStatus(prev => ({ ...prev, chat: 'saving' }));
-    
+    setSaveStatus((prev) => ({ ...prev, chat: "saving" }));
+
     try {
       // Create chat session if it doesn't exist
       if (!chatSessionId) {
@@ -337,20 +381,20 @@ function App() {
           sources: message.sources,
         });
       }
-      
-      setSaveStatus(prev => ({ ...prev, chat: 'success' }));
-      
+
+      setSaveStatus((prev) => ({ ...prev, chat: "success" }));
+
       // Reset to idle after 2 seconds for chat (faster than other saves)
       setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, chat: 'idle' }));
+        setSaveStatus((prev) => ({ ...prev, chat: "idle" }));
       }, 2000);
     } catch (error) {
-      setSaveStatus(prev => ({ ...prev, chat: 'error' }));
+      setSaveStatus((prev) => ({ ...prev, chat: "error" }));
       console.error("Failed to save chat message to history:", error);
-      
+
       // Reset to idle after 4 seconds for errors
       setTimeout(() => {
-        setSaveStatus(prev => ({ ...prev, chat: 'idle' }));
+        setSaveStatus((prev) => ({ ...prev, chat: "idle" }));
       }, 4000);
     }
   };
@@ -396,11 +440,25 @@ function App() {
     setCurrentPage(page);
   };
 
+  if (currentPage === "reset-password") {
+    return (
+        <MainLayout currentPage="transcribe" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
+            <div className="p-6 h-full">
+                <ResetPasswordPage />
+            </div>
+        </MainLayout>
+    );
+  }
+
   // Handle different pages
   if (currentPage === "history") {
     return (
       <>
-        <MainLayout currentPage="history" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
+        <MainLayout
+          currentPage="history"
+          onNavigate={handleNavigate}
+          onShowAuth={() => setShowAuthDialog(true)}
+        >
           <div className="p-6">
             <HistoryPage onViewDetails={handleViewDetails} />
           </div>
@@ -413,7 +471,11 @@ function App() {
   if (currentPage === "details" && selectedTranscriptionId) {
     return (
       <>
-        <MainLayout currentPage="history" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
+        <MainLayout
+          currentPage="history"
+          onNavigate={handleNavigate}
+          onShowAuth={() => setShowAuthDialog(true)}
+        >
           <div className="p-6">
             <TranscriptionDetailsPage
               transcriptionId={selectedTranscriptionId}
@@ -429,218 +491,226 @@ function App() {
   // Show main transcription app
   return (
     <>
-      <MainLayout currentPage="transcribe" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
-      {/* Control Panel */}
-      <div className="flex flex-col space-y-6 h-full">
-        <Card className="flex-shrink-0">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <span>Upload & Configure</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div 
-              onClick={() => {
-                if (!user) {
-                  handleAuthRequired();
-                }
-              }}
-              className={!user ? "cursor-pointer" : ""}
-            >
-              <FileUploader
-                onFileSelect={user ? setSelectedFile : () => {}}
-                selectedFile={selectedFile}
-                disabled={isProcessing || !user}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <Label htmlFor="diarization-switch">Speaker Diarization</Label>
-                <p className="text-sm text-muted-foreground">
-                  Identify and separate different speakers
-                </p>
-              </div>
-              <Switch
-                id="diarization-switch"
-                checked={enableDiarization}
-                onCheckedChange={(checked) => {
-                  if (!user) {
-                    handleAuthRequired();
-                    return;
-                  }
-                  setEnableDiarization(checked);
-                }}
-                disabled={isProcessing || !user}
-              />
-            </div>
-
-            <div className="flex flex-col space-y-3">
-              <Button
-                onClick={handleTranscribe}
-                disabled={!selectedFile || isProcessing}
-                className="w-full"
-                size="lg"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Transcribing...
-                  </>
-                ) : (
-                  "Start Transcription"
-                )}
-              </Button>
-
-              {(isCompleted || hasError) && (
-                <Button
-                  onClick={handleReset}
-                  variant="outline"
-                  className="w-full"
-                  size="lg"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Start New Transcription
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Status Card */}
-        {isCompleted && (
+      <MainLayout
+        currentPage="transcribe"
+        onNavigate={handleNavigate}
+        onShowAuth={() => setShowAuthDialog(true)}
+      >
+        {/* Control Panel */}
+        <div className="flex flex-col space-y-6 h-full">
           <Card className="flex-shrink-0">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <PlayCircle className="h-5 w-5" />
-                <span>Audio Player</span>
+                <span>Upload & Configure</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {audioUrl && (
-                  <div className="flex flex-col space-y-4">
-                    <audio
-                      ref={audioRef}
-                      src={audioUrl}
-                      controls
-                      preload="metadata"
-                      className="w-full"
-                      key={audioUrl} // Force re-render when URL changes
-                      onLoadedMetadata={() => {
-                        console.log("Audio metadata loaded");
-                      }}
-                      onCanPlay={() => {
-                        console.log("Audio can play");
-                      }}
-                      onError={(e) => {
-                        console.error("Audio loading error:", e);
-                        const audio = e.currentTarget;
-                        console.error("Audio error details:", {
-                          error: audio.error,
-                          networkState: audio.networkState,
-                          readyState: audio.readyState,
-                          src: audio.src,
-                        });
-                      }}
-                      onRateChange={() => {
-                        if (audioRef.current) {
-                          setPlaybackRate(audioRef.current.playbackRate);
-                        }
-                      }}
-                    />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Label className="text-sm font-medium">
-                          Playback Speed:
-                        </Label>
-                        {[0.5, 1, 1.5, 2].map((rate) => (
-                          <Button
-                            key={rate}
-                            size="sm"
-                            variant={
-                              playbackRate === rate ? "default" : "outline"
-                            }
-                            onClick={() => handlePlaybackRateChange(rate)}
-                          >
-                            {rate}x
-                          </Button>
-                        ))}
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(audioUrl, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-1" />
-                        Open Audio
-                      </Button>
-                    </div>
-                  </div>
+            <CardContent className="space-y-6">
+              <div
+                onClick={() => {
+                  if (!user) {
+                    handleAuthRequired();
+                  }
+                }}
+                className={!user ? "cursor-pointer" : ""}
+              >
+                <FileUploader
+                  onFileSelect={user ? setSelectedFile : () => {}}
+                  selectedFile={selectedFile}
+                  disabled={isProcessing || !user}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label htmlFor="diarization-switch">
+                    Speaker Diarization
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Identify and separate different speakers
+                  </p>
+                </div>
+                <Switch
+                  id="diarization-switch"
+                  checked={enableDiarization}
+                  onCheckedChange={(checked) => {
+                    if (!user) {
+                      handleAuthRequired();
+                      return;
+                    }
+                    setEnableDiarization(checked);
+                  }}
+                  disabled={isProcessing || !user}
+                />
+              </div>
+
+              <div className="flex flex-col space-y-3">
+                <Button
+                  onClick={handleTranscribe}
+                  disabled={!selectedFile || isProcessing}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Transcribing...
+                    </>
+                  ) : (
+                    "Start Transcription"
+                  )}
+                </Button>
+
+                {(isCompleted || hasError) && (
+                  <Button
+                    onClick={handleReset}
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Start New Transcription
+                  </Button>
                 )}
               </div>
             </CardContent>
           </Card>
-        )}
-      </div>
 
-      {/* Transcript Panel */}
-      <Card className="flex flex-col h-full min-h-0">
-        <CardContent className="flex-1 p-6 min-h-0">
-          {isCompleted ? (
-            <Tabs defaultValue="transcription" className="h-full flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <TabsList>
-                  <TabsTrigger value="transcription">Transcription</TabsTrigger>
-                  <TabsTrigger value="summary">Summary</TabsTrigger>
-                  <TabsTrigger value="chat">Chat</TabsTrigger>
-                </TabsList>
-                
-                {/* Cloud Save Status Indicators */}
-                <div className="flex flex-col space-y-1">
-                  <CloudSaveStatus 
-                    status={saveStatus.transcription} 
-                    label="transcript" 
-                  />
-                  <CloudSaveStatus 
-                    status={saveStatus.summary} 
-                    label="summary" 
-                  />
-                  <CloudSaveStatus 
-                    status={saveStatus.chat} 
-                    label="chat" 
-                  />
+          {/* Status Card */}
+          {isCompleted && (
+            <Card className="flex-shrink-0">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <PlayCircle className="h-5 w-5" />
+                  <span>Audio Player</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {audioUrl && (
+                    <div className="flex flex-col space-y-4">
+                      <audio
+                        ref={audioRef}
+                        src={audioUrl}
+                        controls
+                        preload="metadata"
+                        className="w-full"
+                        key={audioUrl} // Force re-render when URL changes
+                        onLoadedMetadata={() => {
+                          console.log("Audio metadata loaded");
+                        }}
+                        onCanPlay={() => {
+                          console.log("Audio can play");
+                        }}
+                        onError={(e) => {
+                          console.error("Audio loading error:", e);
+                          const audio = e.currentTarget;
+                          console.error("Audio error details:", {
+                            error: audio.error,
+                            networkState: audio.networkState,
+                            readyState: audio.readyState,
+                            src: audio.src,
+                          });
+                        }}
+                        onRateChange={() => {
+                          if (audioRef.current) {
+                            setPlaybackRate(audioRef.current.playbackRate);
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          <Label className="text-sm font-medium">
+                            Playback Speed:
+                          </Label>
+                          {[0.5, 1, 1.5, 2].map((rate) => (
+                            <Button
+                              key={rate}
+                              size="sm"
+                              variant={
+                                playbackRate === rate ? "default" : "outline"
+                              }
+                              onClick={() => handlePlaybackRateChange(rate)}
+                            >
+                              {rate}x
+                            </Button>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(audioUrl, "_blank")}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Open Audio
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-              <TabsContent value="transcription" className="flex-1 min-h-0">
-                <TiptapEditor utterances={transcript} className="h-full" />
-              </TabsContent>
-              <TabsContent value="summary" className="flex-1 min-h-0">
-                <SummaryView
-                  summary={summary}
-                  summaryStatus={summaryStatus}
-                  summaryError={summaryError}
-                  onGenerateSummary={handleGenerateSummary}
-                />
-              </TabsContent>
-              <TabsContent value="chat" className="flex-1 min-h-0">
-                <ChatInterface
-                  taskId={taskId}
-                  isTranscriptCompleted={isCompleted}
-                  messages={chatMessages}
-                  onMessagesChange={setChatMessages}
-                  onMessageSent={handleChatMessage}
-                />
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <TiptapEditor utterances={transcript} className="h-full" />
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
-    </MainLayout>
-    <AuthDialog open={showAuthDialog} onOpenChange={setShowAuthDialog} />
-  </>
+        </div>
+
+        {/* Transcript Panel */}
+        <Card className="flex flex-col h-full min-h-0">
+          <CardContent className="flex-1 p-6 min-h-0">
+            {isCompleted ? (
+              <Tabs
+                defaultValue="transcription"
+                className="h-full flex flex-col"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <TabsList>
+                    <TabsTrigger value="transcription">
+                      Transcription
+                    </TabsTrigger>
+                    <TabsTrigger value="summary">Summary</TabsTrigger>
+                    <TabsTrigger value="chat">Chat</TabsTrigger>
+                  </TabsList>
+
+                  {/* Cloud Save Status Indicators */}
+                  <div className="flex flex-col space-y-1">
+                    <CloudSaveStatus
+                      status={saveStatus.transcription}
+                      label="transcript"
+                    />
+                    <CloudSaveStatus
+                      status={saveStatus.summary}
+                      label="summary"
+                    />
+                    <CloudSaveStatus status={saveStatus.chat} label="chat" />
+                  </div>
+                </div>
+                <TabsContent value="transcription" className="flex-1 min-h-0">
+                  <TiptapEditor utterances={transcript} className="h-full" />
+                </TabsContent>
+                <TabsContent value="summary" className="flex-1 min-h-0">
+                  <SummaryView
+                    summary={summary}
+                    summaryStatus={summaryStatus}
+                    summaryError={summaryError}
+                    onGenerateSummary={handleGenerateSummary}
+                  />
+                </TabsContent>
+                <TabsContent value="chat" className="flex-1 min-h-0">
+                  <ChatInterface
+                    taskId={taskId}
+                    isTranscriptCompleted={isCompleted}
+                    messages={chatMessages}
+                    onMessagesChange={setChatMessages}
+                    onMessageSent={handleChatMessage}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <TiptapEditor utterances={transcript} className="h-full" />
+            )}
+          </CardContent>
+        </Card>
+      </MainLayout>
+      <AuthDialog open={showAuthDialog} onOpenChange={setShowAuthDialog} />
+    </>
   );
 }
 

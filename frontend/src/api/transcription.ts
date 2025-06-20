@@ -1,9 +1,4 @@
-import axios from "axios";
-
-const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
-  withCredentials: true,
-});
+import apiClient from "./apiClient";
 
 export const summarizeTranscription = async (taskId: string) => {
   try {
@@ -13,6 +8,4 @@ export const summarizeTranscription = async (taskId: string) => {
     console.error("Error starting summarization:", error);
     throw error;
   }
-};
-
-export default apiClient;
+}; 

@@ -63,96 +63,49 @@ async def verify_jwt_token(authorization: str = Header(None)) -> str:
             logger.warning(f"Invalid authorization format: {authorization[:20]}...")
             raise HTTPException(status_code=401, detail="Invalid authorization format")
 
-        token = authorization[7:]  # Remove 'Bearer ' (7 characters)
-        logger.debug(f"Received token: {token[:20]}...{token[-20:]}")
+        token = authorization.split(" ")[1]
 
-        # Get Supabase JWT secret
+        # Get Supabase JWT secret from environment
         jwt_secret = os.getenv("SUPABASE_JWT_SECRET")
         if not jwt_secret:
-            logger.error("SUPABASE_JWT_SECRET not configured")
-            raise HTTPException(status_code=500, detail="JWT secret not configured")
-
-        logger.debug(
-            f"JWT secret length: {len(jwt_secret)}, first 20 chars: {jwt_secret[:20]}..."
-        )
-
-        # Decode token without verification to see its content
-        try:
-            unverified_payload = jwt.decode(token, options={"verify_signature": False})
-            logger.debug(f"Unverified token payload: {unverified_payload}")
-        except Exception as e:
-            logger.warning(f"Could not decode token without verification: {e}")
-
-        # Handle base64-encoded JWT secrets (common for Supabase)
-        try:
-            # Try to decode as base64 first
-            decoded_secret = base64.b64decode(jwt_secret)
-            logger.debug(
-                f"Using base64-decoded JWT secret ({len(decoded_secret)} bytes)"
+            logger.error("SUPABASE_JWT_SECRET not configured on the server")
+            raise HTTPException(
+                status_code=500, detail="Authentication secret not configured"
             )
-            secret_to_use = decoded_secret
-        except Exception as e:
-            # If not base64, use as-is
-            logger.debug(f"Using JWT secret as-is (not base64): {e}")
-            secret_to_use = jwt_secret
 
         # Verify and decode token with Supabase-specific settings
         try:
             payload = jwt.decode(
                 token,
-                secret_to_use,
+                jwt_secret,
                 algorithms=["HS256"],
-                # Supabase-specific options
                 options={
-                    "verify_aud": False,  # Disable audience verification for now
-                    "verify_iss": False,  # Disable issuer verification for now
+                    "verify_aud": False,  # Supabase tokens may not have a specific audience
                 },
             )
-            logger.debug(f"Successfully verified token payload: {payload}")
         except jwt.ExpiredSignatureError:
-            logger.warning("JWT token expired")
-            raise HTTPException(status_code=401, detail="Token expired")
+            logger.warning(f"JWT token has expired: {token[:10]}...")
+            raise HTTPException(status_code=401, detail="Token has expired")
         except jwt.InvalidTokenError as e:
-            logger.warning(f"Invalid JWT token: {e}")
-            # Try with the other secret format as a fallback
-            try:
-                logger.debug("Trying with alternate secret format...")
-                alternate_secret = (
-                    jwt_secret
-                    if isinstance(secret_to_use, bytes)
-                    else base64.b64decode(jwt_secret)
-                )
-                payload = jwt.decode(
-                    token,
-                    alternate_secret,
-                    algorithms=["HS256"],
-                    options={
-                        "verify_aud": False,
-                        "verify_iss": False,
-                    },
-                )
-                logger.info("SUCCESS with alternate secret format!")
-            except Exception as e2:
-                logger.error(
-                    f"Both secret formats failed. Original: {e}, Alternate: {e2}"
-                )
-                raise HTTPException(status_code=401, detail="Invalid token")
+            logger.error(f"Invalid JWT token. Error: {e}. Token: {token[:10]}...")
+            raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
-        # Extract user ID
+        # Extract user ID from the 'sub' claim
         user_id = payload.get("sub")
         if not user_id:
-            logger.warning(f"Missing user ID in token payload: {payload}")
+            logger.warning(f"User ID (sub) not found in token payload: {payload}")
             raise HTTPException(status_code=401, detail="Invalid token payload")
 
         logger.info(f"Successfully verified token for user: {user_id}")
         return user_id
 
     except HTTPException:
-        # Re-raise HTTP exceptions as-is
+        # Re-raise HTTP exceptions to be handled by FastAPI
         raise
     except Exception as e:
-        logger.error(f"Unexpected error in JWT verification: {e}")
-        raise HTTPException(status_code=401, detail="Token verification failed")
+        # Catch any other unexpected errors during verification
+        logger.error(f"An unexpected error occurred during JWT verification: {e}")
+        raise HTTPException(status_code=500, detail="Token verification failed")
 
 
 @router.post("/transcriptions")

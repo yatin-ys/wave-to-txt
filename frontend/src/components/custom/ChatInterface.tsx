@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import apiClient from "@/api/client";
+import apiClient from "@/api/apiClient";
 
 interface Message {
   id: string;
