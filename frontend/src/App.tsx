@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { MainLayout } from "@/layouts/MainLayout";
 import { FileUploader } from "@/components/custom/FileUploader";
 import { TiptapEditor } from "@/components/custom/TiptapEditor";
-import { AuthForm } from "@/components/custom/AuthForm";
+import { AuthDialog } from "@/components/custom/AuthDialog";
 import { HistoryPage } from "@/components/custom/HistoryPage";
 import { TranscriptionDetailsPage } from "@/components/custom/TranscriptionDetailsPage";
 import { useTranscription } from "@/hooks/useTranscription";
@@ -23,6 +23,7 @@ import {
   createChatSession,
   saveChatMessage,
 } from "@/api/history";
+import { toast } from "sonner";
 
 // Define the Message interface at the App level
 interface Message {
@@ -91,6 +92,8 @@ function App() {
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   // Chat messages state to persist across tab switches
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
+  // Auth dialog state
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   // Cloud save status tracking
   const [saveStatus, setSaveStatus] = useState<{
     transcription: 'idle' | 'saving' | 'success' | 'error';
@@ -254,7 +257,18 @@ function App() {
     saveSummaryToHistory();
   }, [summaryStatus, summary, taskId, user]);
 
+  const handleAuthRequired = () => {
+    if (!user) {
+      toast.error("Please sign in to use this feature");
+      setShowAuthDialog(true);
+      return true;
+    }
+    return false;
+  };
+
   const handleTranscribe = () => {
+    if (handleAuthRequired()) return;
+    
     if (selectedFile) {
       startTranscription(selectedFile, enableDiarization);
     }
@@ -374,38 +388,48 @@ function App() {
     );
   }
 
-  // Show authentication form if user is not logged in
-  if (!user) {
-    return <AuthForm />;
-  }
+  // Handle navigation for non-authenticated users
+  const handleNavigate = (page: AppPage) => {
+    if (page !== "transcribe" && handleAuthRequired()) {
+      return;
+    }
+    setCurrentPage(page);
+  };
 
   // Handle different pages
   if (currentPage === "history") {
     return (
-      <MainLayout currentPage="history" onNavigate={setCurrentPage}>
-        <div className="p-6">
-          <HistoryPage onViewDetails={handleViewDetails} />
-        </div>
-      </MainLayout>
+      <>
+        <MainLayout currentPage="history" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
+          <div className="p-6">
+            <HistoryPage onViewDetails={handleViewDetails} />
+          </div>
+        </MainLayout>
+        <AuthDialog open={showAuthDialog} onOpenChange={setShowAuthDialog} />
+      </>
     );
   }
 
   if (currentPage === "details" && selectedTranscriptionId) {
     return (
-      <MainLayout currentPage="history" onNavigate={setCurrentPage}>
-        <div className="p-6">
-          <TranscriptionDetailsPage
-            transcriptionId={selectedTranscriptionId}
-            onBack={handleBackToHistory}
-          />
-        </div>
-      </MainLayout>
+      <>
+        <MainLayout currentPage="history" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
+          <div className="p-6">
+            <TranscriptionDetailsPage
+              transcriptionId={selectedTranscriptionId}
+              onBack={handleBackToHistory}
+            />
+          </div>
+        </MainLayout>
+        <AuthDialog open={showAuthDialog} onOpenChange={setShowAuthDialog} />
+      </>
     );
   }
 
   // Show main transcription app
   return (
-    <MainLayout currentPage="transcribe" onNavigate={setCurrentPage}>
+    <>
+      <MainLayout currentPage="transcribe" onNavigate={handleNavigate} onShowAuth={() => setShowAuthDialog(true)}>
       {/* Control Panel */}
       <div className="flex flex-col space-y-6 h-full">
         <Card className="flex-shrink-0">
@@ -415,11 +439,20 @@ function App() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <FileUploader
-              onFileSelect={setSelectedFile}
-              selectedFile={selectedFile}
-              disabled={isProcessing}
-            />
+            <div 
+              onClick={() => {
+                if (!user) {
+                  handleAuthRequired();
+                }
+              }}
+              className={!user ? "cursor-pointer" : ""}
+            >
+              <FileUploader
+                onFileSelect={user ? setSelectedFile : () => {}}
+                selectedFile={selectedFile}
+                disabled={isProcessing || !user}
+              />
+            </div>
 
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -431,8 +464,14 @@ function App() {
               <Switch
                 id="diarization-switch"
                 checked={enableDiarization}
-                onCheckedChange={setEnableDiarization}
-                disabled={isProcessing}
+                onCheckedChange={(checked) => {
+                  if (!user) {
+                    handleAuthRequired();
+                    return;
+                  }
+                  setEnableDiarization(checked);
+                }}
+                disabled={isProcessing || !user}
               />
             </div>
 
@@ -600,6 +639,8 @@ function App() {
         </CardContent>
       </Card>
     </MainLayout>
+    <AuthDialog open={showAuthDialog} onOpenChange={setShowAuthDialog} />
+  </>
   );
 }
 

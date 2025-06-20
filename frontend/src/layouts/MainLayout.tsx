@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AudioWaveform as Waveform, LogOut, History, Upload } from "lucide-react";
+import { AudioWaveform as Waveform, LogOut, History, Upload, LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 
 type AppPage = 'transcribe' | 'history' | 'details';
@@ -19,9 +19,10 @@ interface MainLayoutProps {
   children: ReactNode;
   currentPage?: AppPage;
   onNavigate?: (page: AppPage) => void;
+  onShowAuth?: () => void;
 }
 
-export const MainLayout = ({ children, currentPage = 'transcribe', onNavigate }: MainLayoutProps) => {
+export const MainLayout = ({ children, currentPage = 'transcribe', onNavigate, onShowAuth }: MainLayoutProps) => {
   const { user, signOut } = useAuth();
 
   const getInitials = (email: string) => {
@@ -85,6 +86,13 @@ export const MainLayout = ({ children, currentPage = 'transcribe', onNavigate }:
               )}
 
               <ModeToggle />
+
+              {!user && onShowAuth && (
+                <Button onClick={onShowAuth} size="sm">
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+              )}
 
               {user && (
                 <DropdownMenu>
