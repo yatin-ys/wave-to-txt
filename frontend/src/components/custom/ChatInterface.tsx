@@ -42,6 +42,7 @@ interface ChatInterfaceProps {
   isTranscriptCompleted: boolean;
   messages: Message[];
   onMessagesChange: (messages: Message[]) => void;
+  onMessageSent?: (message: Message) => void;
 }
 
 interface KnowledgeBaseStats {
@@ -60,6 +61,7 @@ export const ChatInterface = ({
   isTranscriptCompleted,
   messages,
   onMessagesChange,
+  onMessageSent,
 }: ChatInterfaceProps) => {
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -146,6 +148,9 @@ export const ChatInterface = ({
     setInputValue("");
     setIsLoading(true);
 
+    // Save user message to history
+    onMessageSent?.(userMessage);
+
     try {
       const response = await apiClient.post(`/chat/${taskId}/ask`, {
         question: question.trim(),
@@ -160,6 +165,9 @@ export const ChatInterface = ({
       };
 
       onMessagesChange([...newMessages, assistantMessage]);
+
+      // Save assistant message to history
+      onMessageSent?.(assistantMessage);
     } catch (error) {
       console.error("Failed to send message:", error);
       const errorMessage: Message = {
@@ -170,6 +178,9 @@ export const ChatInterface = ({
         timestamp: new Date(),
       };
       onMessagesChange([...newMessages, errorMessage]);
+
+      // Save error message to history
+      onMessageSent?.(errorMessage);
       toast.error("Failed to send message. Please try again.");
     } finally {
       setIsLoading(false);

@@ -18,7 +18,6 @@ logger = get_logger("vector_store")
 class VectorStoreManager:
     """
     Manages FAISS vector database for RAG functionality.
-    Uses FAISS + Google embeddings - much lighter than ChromaDB.
     """
 
     def __init__(self):
@@ -52,7 +51,7 @@ class VectorStoreManager:
                 )
 
                 # Initialize FAISS database path
-                vector_db_path = getattr(settings, "CHROMA_DB_PATH", "./chroma_db")
+                vector_db_path = getattr(settings, "FAISS_DB_PATH", "./faiss_db")
                 os.makedirs(vector_db_path, exist_ok=True)
                 self.db_path = vector_db_path
 

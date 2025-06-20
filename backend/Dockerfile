@@ -19,7 +19,7 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Create directories with proper permissions
-RUN mkdir -p /app/chroma_db && chown -R appuser:appuser /app
+RUN mkdir -p /app/faiss_db && chown -R appuser:appuser /app
 
 USER appuser
 

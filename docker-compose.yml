@@ -12,7 +12,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/logs:/app/logs
-      - faiss_data:/app/chroma_db
+      - faiss_data:/app/faiss_db
     depends_on:
       - redis
     environment:
@@ -30,14 +30,18 @@ services:
       - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
       - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
       - RAG_TOP_K_RESULTS=${RAG_TOP_K_RESULTS:-5}
-      - CHROMA_DB_PATH=/app/chroma_db
+      - FAISS_DB_PATH=/app/faiss_db
+      # Supabase configuration for backend persistence
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
 
   worker:
     build:
       context: ./backend
     volumes:
       - ./backend/logs:/app/logs
-      - faiss_data:/app/chroma_db
+      - faiss_data:/app/faiss_db
     depends_on:
       - redis
       - backend
@@ -55,12 +59,25 @@ services:
       - RAG_CHUNK_SIZE=${RAG_CHUNK_SIZE:-1000}
       - RAG_CHUNK_OVERLAP=${RAG_CHUNK_OVERLAP:-200}
       - RAG_TOP_K_RESULTS=${RAG_TOP_K_RESULTS:-5}
-      - CHROMA_DB_PATH=/app/chroma_db
+      - FAISS_DB_PATH=/app/faiss_db
+      # Supabase configuration for backend persistence
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
     command: celery -A backend.worker.celery_app worker --loglevel=info
 
   frontend:
     build:
       context: ./frontend
+      args:
+        # API Configuration - Use nginx proxy path
+        VITE_API_URL: /api
+
+        # Supabase Authentication Configuration (build-time)
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_AUTH_REDIRECT_URL: ${VITE_AUTH_REDIRECT_URL:-http://localhost:3000}
+        VITE_ENABLE_GOOGLE_AUTH: ${VITE_ENABLE_GOOGLE_AUTH:-true}
     ports:
       - "3000:80"
     depends_on:
