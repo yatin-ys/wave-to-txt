@@ -3,7 +3,7 @@
 An AI-powered application that transcribes audio, generates summaries, and lets you chat with your content using Retrieval-Augmented Generation (RAG).
 Built with a Python/FastAPI backend, Google Gemini models, a FAISS vector store, and a modern React/TypeScript frontend.
 
-Live - https://wavetotxt.yatin-ys.tech/
+Live - https://wavetotxt.xyz
 
 ## Prerequisites
 
